@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhishu.local/contracts/runtime-v1/runtime-events.schema.json",
+  "title": "Zhishu Runtime Event Batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "events"],
+  "properties": {
+    "protocolVersion": { "const": "1.0" },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/runtimeEvent" }
+    }
+  },
+  "$defs": {
+    "runtimeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "eventId",
+        "taskId",
+        "attemptId",
+        "runtimeRunId",
+        "sequenceNo",
+        "occurredAt",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "protocolVersion": { "const": "1.0" },
+        "eventId": { "type": "string", "minLength": 1 },
+        "taskId": { "type": "string", "format": "uuid" },
+        "attemptId": { "type": "string", "format": "uuid" },
+        "runtimeRunId": { "type": "string", "minLength": 1 },
+        "sequenceNo": { "type": "integer", "minimum": 1 },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "RUN_STARTED",
+            "RUNTIME_HEARTBEAT",
+            "AGENT_STATUS",
+            "COMMAND_COMPLETED",
+            "ARTIFACT_PUBLISHED",
+            "APPROVAL_REQUIRED",
+            "APPROVAL_RESOLVED",
+            "ERROR",
+            "RUN_COMPLETED",
+            "RUN_FAILED",
+            "RUN_ABORTED"
+          ]
+        },
+        "payload": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "ARTIFACT_PUBLISHED" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "payload": { "$ref": "#/$defs/artifactPayload" }
+            }
+          }
+        }
+      ]
+    },
+    "artifactPayload": {
+      "type": "object",
+      "required": [
+        "artifactId",
+        "artifactType",
+        "producer",
+        "contentPlain",
+        "mimeType",
+        "sizeBytes",
+        "hash",
+        "metadata"
+      ],
+      "properties": {
+        "artifactId": { "type": "string", "format": "uuid" },
+        "artifactType": {
+          "enum": ["SUMMARY", "FILE_CHANGE", "GIT_DIFF", "TEST_REPORT", "ERROR_REPORT"]
+        },
+        "producer": { "type": "string", "minLength": 1 },
+        "contentPlain": { "type": "string" },
+        "mimeType": { "type": "string", "minLength": 1 },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "minLength": 1 },
+        "metadata": { "type": "object" }
+      }
+    }
+  }
+}

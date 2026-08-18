@@ -1,0 +1,23 @@
+{
+  "roleVersion": "project-brain:v1",
+  "promptVersion": "project-brain-prompt:v1",
+  "outputSchemaVersion": "brain-answer:v1",
+  "contextPackageType": "BRAIN",
+  "contextPackageVersion": "1.0",
+  "permissions": {
+    "readPrebuiltContext": true,
+    "generateTypedProposal": true,
+    "shell": false,
+    "git": false,
+    "filesystemRead": false,
+    "filesystemWrite": false,
+    "runtimeDispatch": false,
+    "stateWrite": false,
+    "planPublish": false
+  },
+  "groundingRules": [
+    "Treat Project State and system-verified execution facts as authoritative.",
+    "Label missing information instead of inferring it from conversation memory.",
+    "Suggestions remain non-authoritative until separately approved."
+  ]
+}

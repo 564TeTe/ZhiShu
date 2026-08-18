@@ -1,0 +1,776 @@
+openapi: 3.1.0
+info:
+  title: Zhishu Control Plane API
+  version: 1.0.0
+  description: Public task orchestration API and authenticated Node Runtime callback contract.
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /api/v1/projects/ensure:
+    post:
+      operationId: ensureProject
+      summary: Map a Node workspace into a Control Plane project and default profile.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnsureProjectRequest'
+      responses:
+        '200':
+          description: Project registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectRegistration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/projects/resolve:
+    get:
+      operationId: resolveProjectRegistration
+      summary: Resolve an existing Control Plane project and default profile without creating data.
+      parameters:
+        - name: projectRef
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Existing project registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectRegistration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/projects/{projectId}/approval-policy:
+    get:
+      operationId: getProjectApprovalPolicy
+      summary: Return the persisted approval policy for one project.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Current project approval policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectApprovalPolicy'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateProjectApprovalPolicy
+      summary: Replace the approval mode, directory allowlist, trusted commands, and timeout.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApprovalPolicyRequest'
+      responses:
+        '200':
+          description: Updated project approval policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectApprovalPolicy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      summary: List tasks, optionally filtered by project, newest first.
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: The implementation clamps this value to the inclusive range 1 through 200.
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Task snapshots.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      operationId: createTask
+      summary: Persist a task and asynchronously start its first Runtime attempt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '202':
+          description: Task persisted and Runtime start accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /api/v1/tasks/{taskId}:
+    get:
+      operationId: getTask
+      summary: Return the current task and attempt snapshot.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Current task snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteTask
+      summary: Permanently delete a terminal task and its persisted execution records.
+      description: This is the current Golden Core behavior. Archive and evidence-reference protection are planned for a later version.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '204':
+          description: Terminal task deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/tasks/{taskId}/cancel:
+    post:
+      operationId: cancelTask
+      summary: Move the current attempt to CANCELLING and issue an idempotent Runtime cancel.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '202':
+          description: Cancellation accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /api/v1/tasks/{taskId}/retry:
+    post:
+      operationId: retryTask
+      summary: Create a new attempt while preserving prior execution history.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '202':
+          description: New attempt accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /api/v1/tasks/{taskId}/attempts:
+    get:
+      operationId: listTaskAttempts
+      summary: List attempt history newest first.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Attempt history.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskAttempt'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/tasks/{taskId}/follow-ups:
+    get:
+      operationId: listTaskFollowUps
+      summary: List structured follow-ups and their linked attempts newest first.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Follow-up history.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskFollowUp'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createTaskFollowUp
+      summary: Idempotently create a follow-up and a new attempt under the same task.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FollowUpRequest'
+      responses:
+        '202':
+          description: Follow-up attempt accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskFollowUp'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /api/v1/tasks/{taskId}/acceptance:
+    post:
+      operationId: acceptTaskResult
+      summary: Append an audited user acceptance decision for the current terminal attempt.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptanceRequest'
+      responses:
+        '200':
+          description: Acceptance decision recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAcceptance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/tasks/{taskId}/approvals:
+    get:
+      operationId: listPendingApprovals
+      summary: List pending approvals for a task.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Pending approvals.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Approval'
+  /api/v1/tasks/{taskId}/artifacts:
+    get:
+      operationId: listTaskArtifacts
+      summary: List durable artifacts for a task, newest first.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task artifacts across all attempts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskArtifact'
+  /api/v1/approvals/{approvalId}/decision:
+    post:
+      operationId: decideApproval
+      summary: Approve or deny one pending Runtime tool request.
+      parameters:
+        - $ref: '#/components/parameters/ApprovalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecisionRequest'
+      responses:
+        '200':
+          description: Decision accepted by Node Runtime.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /api/v1/tasks/{taskId}/events:
+    get:
+      operationId: streamTaskEvents
+      summary: Stream durable Runtime events; reconnect with Last-Event-ID.
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Server-sent event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /internal/control/v1/events:batch:
+    post:
+      operationId: ingestRuntimeEvents
+      summary: Idempotently persist and project one Runtime event batch.
+      security:
+        - runtimeToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../runtime-v1/runtime-events.schema.json'
+      responses:
+        '202':
+          description: Events persisted or recognized as exact replays.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, duplicates]
+                properties:
+                  accepted: { type: integer, minimum: 0 }
+                  duplicates: { type: integer, minimum: 0 }
+        '401':
+          description: Bearer token is invalid.
+        '422':
+          description: Event identity or attempt/run relationship is invalid.
+        '503':
+          description: Runtime token is not configured.
+components:
+  securitySchemes:
+    runtimeToken:
+      type: http
+      scheme: bearer
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ApprovalId:
+      name: approvalId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: The requested task, project configuration, approval, or policy was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: The requested transition conflicts with current state or an idempotency/concurrency check.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadGateway:
+      description: The Node Runtime rejected or could not complete the requested control command.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [timestamp, status, code, message]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        code: { type: string }
+        message: { type: string }
+    EnsureProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [candidateProjectId, projectRef, displayName]
+      properties:
+        candidateProjectId: { type: string, format: uuid }
+        projectRef: { type: string, minLength: 1 }
+        displayName: { type: string, minLength: 1 }
+    ProjectRegistration:
+      type: object
+      required: [projectId, profileId, projectRef, profileName]
+      properties:
+        projectId: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        projectRef: { type: string }
+        profileName: { type: string }
+    ApprovalMode:
+      type: string
+      enum: [MANUAL, AUTO_SAFE, AUTO_TRUSTED]
+    UpdateApprovalPolicyRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, approvalTimeoutSeconds]
+      properties:
+        mode:
+          $ref: '#/components/schemas/ApprovalMode'
+        allowedDirectories:
+          type: [array, 'null']
+          items: { type: string }
+          description: Relative paths under projectRoot. Null or empty resolves to ['.'].
+        trustedCommands:
+          type: [array, 'null']
+          items:
+            type: array
+            minItems: 1
+            items: { type: string }
+        approvalTimeoutSeconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+    ApprovalPolicySnapshot:
+      type: object
+      required: [mode, requestedMode, projectRoot, allowedDirectories, trustedCommands, approvalTimeoutSeconds]
+      properties:
+        mode:
+          $ref: '#/components/schemas/ApprovalMode'
+        requestedMode:
+          $ref: '#/components/schemas/ApprovalMode'
+        projectRoot: { type: string }
+        allowedDirectories:
+          type: array
+          items: { type: string }
+        trustedCommands:
+          type: array
+          items:
+            type: array
+            minItems: 1
+            items: { type: string }
+        approvalTimeoutSeconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+    ProjectApprovalPolicy:
+      type: object
+      required: [projectId, projectRoot, mode, allowedDirectories, trustedCommands, approvalTimeoutSeconds, updatedAt]
+      properties:
+        projectId: { type: string, format: uuid }
+        projectRoot: { type: string }
+        mode:
+          $ref: '#/components/schemas/ApprovalMode'
+        allowedDirectories:
+          type: array
+          items: { type: string }
+        trustedCommands:
+          type: array
+          items:
+            type: array
+            minItems: 1
+            items: { type: string }
+        approvalTimeoutSeconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+        updatedAt: { type: string, format: date-time }
+    CreateTaskRequest:
+      type: object
+      additionalProperties: false
+      required: [projectId, profileId, title, objective]
+      properties:
+        projectId: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        objective: { type: string, minLength: 1 }
+        connectionRef: { type: [string, 'null'] }
+        executor:
+          type: [string, 'null']
+          enum: [claude, codex, opencode, null]
+        modelAlias: { type: [string, 'null'] }
+        approvalMode:
+          anyOf:
+            - $ref: '#/components/schemas/ApprovalMode'
+            - type: 'null'
+        additionalContext: { type: object }
+    Task:
+      type: object
+      required: [taskId, projectId, profileId, title, objective, status, attemptStatus, resolutionStatus, createdAt]
+      properties:
+        taskId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        title: { type: string }
+        objective: { type: string }
+        status:
+          type: string
+          enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED]
+          deprecated: true
+          description: Compatibility alias for attemptStatus.
+        attemptStatus:
+          type: string
+          enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED]
+        resolutionStatus:
+          type: string
+          enum: [OPEN, IN_PROGRESS, WAITING_ACCEPTANCE, NEEDS_FOLLOW_UP, RESOLVED, CLOSED]
+        attemptId: { type: [string, 'null'], format: uuid }
+        attemptNumber: { type: [integer, 'null'] }
+        runtimeRunId: { type: [string, 'null'] }
+        runtimeHealthStatus:
+          type: [string, 'null']
+          enum: [NOT_MONITORED, HEALTHY, UNKNOWN, LOST, TERMINATED, null]
+        lastHeartbeatAt: { type: [string, 'null'], format: date-time }
+        leaseExpiresAt: { type: [string, 'null'], format: date-time }
+        unknownSince: { type: [string, 'null'], format: date-time }
+        lostAt: { type: [string, 'null'], format: date-time }
+        lostReason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        errorCode: { type: [string, 'null'] }
+        errorMessage: { type: [string, 'null'] }
+    FollowUpRequest:
+      type: object
+      additionalProperties: false
+      required: [parentAttemptId, clientRequestId, actor, feedback, requestedAcceptance]
+      properties:
+        parentAttemptId: { type: string, format: uuid }
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        feedback: { type: string, minLength: 1, maxLength: 20000 }
+        requestedAcceptance: { type: string, minLength: 1, maxLength: 20000 }
+        connectionRef: { type: [string, 'null'] }
+        executor:
+          type: [string, 'null']
+          enum: [claude, codex, opencode, null]
+        modelAlias: { type: [string, 'null'] }
+        approvalMode:
+          anyOf:
+            - $ref: '#/components/schemas/ApprovalMode'
+            - type: 'null'
+        additionalContext: { type: object }
+    AcceptanceRequest:
+      type: object
+      additionalProperties: false
+      required: [attemptId, clientRequestId, actor, decision, reason]
+      properties:
+        attemptId: { type: string, format: uuid }
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+        actor: { type: string, minLength: 1, maxLength: 120 }
+        decision:
+          type: string
+          enum: [RESOLVED, NEEDS_FOLLOW_UP, CLOSED]
+        reason: { type: string, minLength: 1, maxLength: 20000 }
+    TaskAttempt:
+      type: object
+      required: [attemptId, attemptNumber, status, runtimeHealthStatus, createdAt]
+      properties:
+        attemptId: { type: string, format: uuid }
+        attemptNumber: { type: integer, minimum: 1 }
+        runtimeRunId: { type: [string, 'null'] }
+        status:
+          type: string
+          enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED]
+        runtimeHealthStatus:
+          type: string
+          enum: [NOT_MONITORED, HEALTHY, UNKNOWN, LOST, TERMINATED]
+        lastHeartbeatAt: { type: [string, 'null'], format: date-time }
+        leaseExpiresAt: { type: [string, 'null'], format: date-time }
+        unknownSince: { type: [string, 'null'], format: date-time }
+        lostAt: { type: [string, 'null'], format: date-time }
+        lostReason: { type: [string, 'null'] }
+        executor: { type: [string, 'null'] }
+        modelAlias: { type: [string, 'null'] }
+        connectionRef: { type: [string, 'null'] }
+        approvalMode: { type: [string, 'null'] }
+        requestedApprovalMode: { type: [string, 'null'] }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        errorCode: { type: [string, 'null'] }
+        errorMessage: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        followUpId: { type: [string, 'null'], format: uuid }
+        parentAttemptId: { type: [string, 'null'], format: uuid }
+        followUpFeedback: { type: [string, 'null'] }
+        requestedAcceptance: { type: [string, 'null'] }
+        acceptanceDecision:
+          type: [string, 'null']
+          enum: [RESOLVED, NEEDS_FOLLOW_UP, CLOSED, null]
+        acceptanceReason: { type: [string, 'null'] }
+        acceptanceAt: { type: [string, 'null'], format: date-time }
+    TaskFollowUp:
+      type: object
+      required:
+        - id
+        - taskId
+        - parentAttemptId
+        - attemptId
+        - clientRequestId
+        - actor
+        - feedback
+        - requestedAcceptance
+        - additionalContext
+        - attemptNumber
+        - attemptStatus
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        parentAttemptId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        clientRequestId: { type: string }
+        actor: { type: string }
+        feedback: { type: string }
+        requestedAcceptance: { type: string }
+        additionalContext: { type: object }
+        attemptNumber: { type: integer, minimum: 1 }
+        attemptStatus:
+          type: string
+          enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, ABORTED]
+        errorCode: { type: [string, 'null'] }
+        errorMessage: { type: [string, 'null'] }
+        acceptanceDecision:
+          type: [string, 'null']
+          enum: [RESOLVED, NEEDS_FOLLOW_UP, CLOSED, null]
+        acceptanceReason: { type: [string, 'null'] }
+        acceptanceAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    TaskAcceptance:
+      type: object
+      required: [id, taskId, attemptId, clientRequestId, actor, decision, reason, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        clientRequestId: { type: string }
+        actor: { type: string }
+        decision:
+          type: string
+          enum: [RESOLVED, NEEDS_FOLLOW_UP, CLOSED]
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+    ApprovalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVED, DENIED]
+        message: { type: [string, 'null'] }
+    Approval:
+      type: object
+      required:
+        - id
+        - taskId
+        - attemptId
+        - runtimeRunId
+        - runtimeApprovalId
+        - toolName
+        - toolInput
+        - status
+        - attemptStatus
+        - createdAt
+        - approvalPolicySnapshot
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        runtimeRunId: { type: string }
+        runtimeApprovalId: { type: string }
+        toolName: { type: string }
+        toolInput: { type: object }
+        riskLevel: { type: [string, 'null'] }
+        status:
+          type: string
+          description: Includes pending, transitional, automatic, manual, denied, and expired states.
+        attemptStatus:
+          type: string
+          enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, ABORTED]
+        expiresAt: { type: [string, 'null'], format: date-time }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        approvalPolicySnapshot:
+          $ref: '#/components/schemas/ApprovalPolicySnapshot'
+        decisionSource: { type: [string, 'null'] }
+        policy: { type: [string, 'null'] }
+        rule: { type: [string, 'null'] }
+        reason: { type: [string, 'null'] }
+    TaskArtifact:
+      type: object
+      required: [id, taskId, attemptId, artifactType, producer, metadata, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        artifactType:
+          type: string
+          enum: [SUMMARY, FILE_CHANGE, GIT_DIFF, TEST_REPORT, ERROR_REPORT]
+        producer: { type: string }
+        contentPlain: { type: [string, 'null'] }
+        storagePath: { type: [string, 'null'] }
+        mimeType: { type: [string, 'null'] }
+        sizeBytes: { type: [integer, 'null'], minimum: 0 }
+        hash: { type: [string, 'null'] }
+        metadata: { type: object }
+        createdAt: { type: string, format: date-time }

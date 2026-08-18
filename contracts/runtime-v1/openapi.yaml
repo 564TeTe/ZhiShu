@@ -1,0 +1,466 @@
+openapi: 3.1.0
+info:
+  title: Zhishu Runtime Protocol
+  version: 1.1.0
+  description: Versioned internal contract between the Spring Control Plane and Node Execution Plane.
+servers:
+  - url: http://127.0.0.1:3001/internal/runtime/v1
+security:
+  - runtimeToken: []
+paths:
+  /health:
+    get:
+      operationId: getRuntimeHealth
+      summary: Inspect secret-free Runtime event delivery configuration and outbox health.
+      responses:
+        '200':
+          description: Current Runtime event delivery health snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeEventDeliveryHealth'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/RuntimeAuthNotConfigured'
+  /runs:
+    post:
+      operationId: startRuntimeRun
+      summary: Accept one idempotent Agent attempt for asynchronous execution.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeStartCommand'
+      responses:
+        '202':
+          description: The command was accepted or replayed from the idempotency store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeAcceptedResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /runs/{runtimeRunId}/cancel:
+    post:
+      operationId: cancelRuntimeRun
+      summary: Interrupt an active provider run.
+      parameters:
+        - $ref: '#/components/parameters/RuntimeRunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeControlCommand'
+      responses:
+        '200':
+          description: Cancellation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeCancelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/RuntimeAuthNotConfigured'
+  /runs/{runtimeRunId}/approvals/{runtimeApprovalId}/decision:
+    post:
+      operationId: decideRuntimeApproval
+      summary: Resolve one pending provider Permission Hook request.
+      parameters:
+        - $ref: '#/components/parameters/RuntimeRunId'
+        - name: runtimeApprovalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [protocolVersion, requestId, idempotencyKey, decision]
+              properties:
+                protocolVersion:
+                  const: '1.0'
+                requestId:
+                  type: string
+                idempotencyKey:
+                  type: string
+                decision:
+                  type: string
+                  enum: [APPROVED, DENIED]
+                message:
+                  type: string
+                decisionSource:
+                  type: string
+                  description: MANUAL, AUTO_POLICY, POLICY_DENY, or TIMEOUT decision origin.
+                policy:
+                  type: string
+                rule:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: The pending provider permission was resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeApprovalDecisionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/RuntimeAuthNotConfigured'
+components:
+  securitySchemes:
+    runtimeToken:
+      type: http
+      scheme: bearer
+  parameters:
+    RuntimeRunId:
+      name: runtimeRunId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Runtime protocol version, required fields, or approval decision is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Bearer token is invalid or missing.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RuntimeAuthNotConfigured:
+      description: ZS_RUNTIME_TOKEN is not configured on the Node Runtime.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Workspace or live Runtime run was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Idempotency key conflicts or an approval is no longer pending.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Executor, capability, connection, or permission policy is unsupported.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: Provider execution, credentials, authentication, or event delivery is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: [object, 'null']
+          additionalProperties: true
+    RuntimeEventDeliveryHealth:
+      type: object
+      required:
+        - status
+        - started
+        - configurationReady
+        - missingConfiguration
+        - invalidConfiguration
+        - pendingEvents
+        - dueEvents
+        - oldestEventAgeMs
+        - maxAttempts
+        - lastError
+      properties:
+        status:
+          type: string
+          enum: [up, degraded, misconfigured]
+        started:
+          type: boolean
+        configurationReady:
+          type: boolean
+        missingConfiguration:
+          type: array
+          items:
+            type: string
+        invalidConfiguration:
+          type: array
+          items:
+            type: string
+        pendingEvents:
+          type: integer
+          minimum: 0
+        dueEvents:
+          type: integer
+          minimum: 0
+        oldestEventAgeMs:
+          type: [integer, 'null']
+          minimum: 0
+        maxAttempts:
+          type: integer
+          minimum: 0
+        lastError:
+          type: [string, 'null']
+    RuntimeControlCommand:
+      type: object
+      required: [protocolVersion, requestId, idempotencyKey]
+      properties:
+        protocolVersion:
+          const: '1.0'
+        requestId:
+          type: string
+        idempotencyKey:
+          type: string
+    RuntimeAcceptedResponse:
+      type: object
+      required: [runtimeRunId, accepted]
+      properties:
+        runtimeRunId:
+          type: string
+        accepted:
+          const: true
+    RuntimeCancelResponse:
+      type: object
+      required: [runtimeRunId, aborted]
+      properties:
+        runtimeRunId: { type: string }
+        aborted: { type: boolean }
+    RuntimeApprovalDecisionResponse:
+      type: object
+      required: [runtimeRunId, runtimeApprovalId, decision]
+      properties:
+        runtimeRunId: { type: string }
+        runtimeApprovalId: { type: string }
+        decision:
+          type: string
+          enum: [APPROVED, AUTO_APPROVED, DENIED, EXPIRED]
+    RuntimeFollowUpEvidence:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string }
+        content: { type: [string, 'null'] }
+        metadata:
+          type: object
+          additionalProperties: true
+    RuntimeFollowUpAttempt:
+      type: object
+      required: [attemptId, attemptNumber, status, evidence]
+      properties:
+        attemptId: { type: string }
+        attemptNumber: { type: integer, minimum: 1 }
+        status: { type: string }
+        executor: { type: string }
+        modelAlias: { type: string }
+        followUpId: { type: string }
+        parentAttemptId: { type: string }
+        userFeedback: { type: string }
+        requestedAcceptance: { type: string }
+        acceptanceDecision: { type: string }
+        acceptanceReason: { type: string }
+        failureCode: { type: string }
+        failureReason: { type: string }
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeFollowUpEvidence'
+    RuntimeTaskFollowUpContext:
+      type: object
+      required:
+        - contextType
+        - followUpId
+        - parentAttemptId
+        - originalObjective
+        - previousAttempt
+        - userFeedback
+        - requestedAcceptance
+      properties:
+        contextType:
+          const: TASK_FOLLOW_UP_V1
+        followUpId: { type: string }
+        parentAttemptId: { type: string }
+        originalObjective: { type: string }
+        previousAttempt:
+          $ref: '#/components/schemas/RuntimeFollowUpAttempt'
+        attemptHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeFollowUpAttempt'
+        historyTruncated: { type: boolean }
+        userFeedback: { type: string }
+        requestedAcceptance: { type: string }
+        additionalContext:
+          type: object
+          additionalProperties: true
+    RuntimeStartCommand:
+      type: object
+      required:
+        - protocolVersion
+        - requestId
+        - idempotencyKey
+        - taskId
+        - attemptId
+        - projectRef
+        - executor
+        - objective
+        - capabilities
+        - permissionPolicy
+      properties:
+        protocolVersion:
+          const: '1.0'
+        requestId:
+          type: string
+        idempotencyKey:
+          type: string
+        taskId:
+          type: string
+        attemptId:
+          type: string
+        projectRef:
+          type: string
+          description: Absolute path on the Node Runtime host in Golden Core.
+        executor:
+          type: string
+          enum: [claude, codex, opencode]
+        modelAlias:
+          type: [string, 'null']
+        connectionRef:
+          type: [string, 'null']
+          description: Node-local Claude connection identifier; never contains credentials.
+        objective:
+          type: string
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [READ_FILE, WRITE_FILE, SEARCH_CODE, SHELL, GIT, TEST]
+        permissionPolicy:
+          type: object
+          required: [requireApprovalFor, mode, projectRoot, allowedDirectories, trustedCommands, approvalTimeoutSeconds]
+          properties:
+            requireApprovalFor:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                enum: [READ_FILE, WRITE_FILE, SEARCH_CODE, SHELL, GIT, TEST]
+            mode:
+              type: string
+              enum: [MANUAL, AUTO_SAFE, AUTO_TRUSTED]
+            projectRoot:
+              type: string
+              description: Frozen absolute project root; must equal projectRef after normalization.
+            allowedDirectories:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                description: Relative directory constrained under projectRoot.
+            trustedCommands:
+              type: array
+              items:
+                type: array
+                minItems: 1
+                items:
+                  type: string
+              description: Exact argv token arrays; prefix matches are forbidden.
+            approvalTimeoutSeconds:
+              type: integer
+              minimum: 5
+              maximum: 300
+        context:
+          type: object
+          properties:
+            historySummary:
+              type: [string, 'null']
+            vision:
+              type: [string, 'null']
+            attachments:
+              type: array
+              items: {}
+            taskFollowUpContext:
+              $ref: '#/components/schemas/RuntimeTaskFollowUpContext'
+            workOrderContext:
+              $ref: '#/components/schemas/RuntimeWorkOrderContextV1'
+    RuntimeWorkOrderContextV1:
+      type: object
+      required:
+        - schemaVersion
+        - workOrderId
+        - planId
+        - planVersionId
+        - planVersion
+        - nodeKey
+        - objective
+        - acceptanceCriteria
+        - requiredCapabilities
+        - contextVersion
+      properties:
+        schemaVersion: { const: '1.0' }
+        workOrderId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        planVersion: { type: integer, minimum: 1 }
+        nodeKey: { type: string, minLength: 1 }
+        objective: { type: string, minLength: 1 }
+        acceptanceCriteria:
+          type: array
+          items: { type: string }
+        requiredCapabilities:
+          type: array
+          items: { type: string }
+        contextVersion:
+          type: object
+          required: [workOrderContextVersion, planVersionId, planVersion, stateRevision, executionWatermark, capturedAt]
+          properties:
+            workOrderContextVersion: { const: '1.0' }
+            planVersionId: { type: string, format: uuid }
+            planVersion: { type: integer, minimum: 1 }
+            stateRevision: { type: integer, minimum: 0 }
+            executionWatermark: { type: integer, minimum: 0 }
+            capturedAt: { type: string, format: date-time }

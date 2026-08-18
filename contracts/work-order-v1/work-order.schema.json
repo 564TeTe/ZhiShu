@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhishu.local/contracts/work-order-v1/work-order.schema.json",
+  "title": "WorkOrderV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "workOrderId", "projectId", "planId", "planVersionId", "versionNumber",
+    "nodeKey", "schemaVersion", "clientRequestId", "profileId", "title",
+    "objective", "acceptanceCriteria", "requiredCapabilities", "contextVersion",
+    "status", "taskId", "initialAttemptId", "reports", "events"
+  ],
+  "properties": {
+    "workOrderId": { "type": "string", "format": "uuid" },
+    "projectId": { "type": "string", "format": "uuid" },
+    "planId": { "type": "string", "format": "uuid" },
+    "planVersionId": { "type": "string", "format": "uuid" },
+    "versionNumber": { "type": "integer", "minimum": 1 },
+    "nodeKey": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "const": "1.0" },
+    "clientRequestId": { "type": "string", "minLength": 1 },
+    "profileId": { "type": "string", "format": "uuid" },
+    "scheduleDispatchId": { "type": ["string", "null"], "format": "uuid" },
+    "scheduleId": { "type": ["string", "null"], "format": "uuid" },
+    "scheduleAssignmentId": { "type": ["string", "null"], "format": "uuid" },
+    "workspaceLeaseId": { "type": ["string", "null"], "format": "uuid" },
+    "executionWorkspacePath": { "type": ["string", "null"], "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "acceptanceCriteria": { "type": "array", "items": { "type": "string" } },
+    "requiredCapabilities": { "type": "array", "items": { "type": "string" } },
+    "contextVersion": {
+      "type": "object",
+      "required": [
+        "workOrderContextVersion", "planVersionId", "planVersion",
+        "stateRevision", "executionWatermark", "capturedAt"
+      ],
+      "properties": {
+        "workOrderContextVersion": { "const": "1.0" },
+        "planVersionId": { "type": "string", "format": "uuid" },
+        "planVersion": { "type": "integer", "minimum": 1 },
+        "stateRevision": { "type": "integer", "minimum": 0 },
+        "executionWatermark": { "type": "integer", "minimum": 0 },
+        "capturedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "status": {
+      "enum": [
+        "CLAIMED", "DISPATCHING", "DISPATCHED", "RUNNING", "WAITING_APPROVAL",
+        "AWAITING_VERIFICATION", "VERIFIED", "REJECTED", "FAILED", "LOST", "ABORTED"
+      ]
+    },
+    "taskId": { "type": "string", "format": "uuid" },
+    "initialAttemptId": { "type": "string", "format": "uuid" },
+    "reports": {
+      "type": "array",
+      "items": { "$ref": "execution-report.schema.json" }
+    },
+    "events": { "type": "array", "items": { "type": "object" } }
+  }
+}

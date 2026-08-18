@@ -1,0 +1,2451 @@
+openapi: 3.1.0
+info:
+  title: Zhishu Project Control Internal API
+  version: 1.19.0
+  description: >-
+    Service-credential protected Node BFF to Control Plane protocol. Execution reads
+    reuse existing projections; semantic state writes and parallel scheduling are
+    proposal-first and actor-audited. Workspace provisioning is a controlled
+    marked-directory operation; Integration evidence is captured as immutable snapshots,
+    and Git-backed Worktree operations are not implicit. Successful Integration candidates
+    require an explicit ownership-checked, clean-primary fast-forward finalization request.
+servers:
+  - url: http://127.0.0.1:8080
+security:
+  - projectControlToken: []
+paths:
+  /internal/project-control/v1/workspaces/resolve:
+    get:
+      operationId: resolveWorkspaceObservation
+      parameters:
+        - { name: machineId, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: localProjectId, in: query, required: false, schema: { type: string, minLength: 1 } }
+        - { name: normalizedWorkspacePath, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: remoteFingerprint, in: query, required: false, schema: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: Deterministic match, ambiguity, or not-found result.
+          content:
+            application/json:
+              schema:
+                $ref: ./project-identity.schema.json
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceCredentialUnavailable' }
+  /internal/project-control/v1/tasks:
+    get:
+      operationId: listProjectControlTasks
+      parameters:
+        - { name: projectId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200':
+          description: Existing Task projections.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '../control-v1/openapi.yaml#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/tasks:
+    get:
+      operationId: searchProjectTaskHistory
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: archive
+          in: query
+          schema: { type: string, enum: [ACTIVE, ARCHIVED, ALL], default: ACTIVE }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED] }
+        - name: resolutionStatus
+          in: query
+          schema: { type: string, enum: [OPEN, IN_PROGRESS, WAITING_ACCEPTANCE, NEEDS_FOLLOW_UP, RESOLVED, CLOSED] }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 500 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Bounded, project-scoped Task history page.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskHistoryPage' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/tasks/{taskId}:
+    get:
+      operationId: getProjectTaskHistoryItem
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/TaskId' }
+      responses:
+        '200':
+          description: Active or archived Task history item.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskHistoryTask' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+  /internal/project-control/v1/projects/{projectId}/tasks/{taskId}/attempts:
+    get:
+      operationId: listProjectTaskHistoryAttempts
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/TaskId' }
+      responses:
+        '200':
+          description: Attempt history for an active or archived Task.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskAttempt' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+  /internal/project-control/v1/projects/{projectId}/activity:
+    get:
+      operationId: readProjectActivity
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: after
+          in: query
+          required: false
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        '200':
+          description: Durable project activity page. RESYNC_REQUIRED requires a full snapshot refresh.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProjectActivityPage' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+  /internal/project-control/v1/projects/{projectId}/metrics:
+    get:
+      operationId: readProjectMetrics
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: windowHours
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 2160, default: 168 }
+      responses:
+        '200':
+          description: Bounded project performance, token, error and health metrics.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProjectMetrics' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+  /internal/project-control/v1/tasks/{taskId}:
+    get:
+      operationId: getProjectControlTask
+      parameters: [ { $ref: '#/components/parameters/TaskId' } ]
+      responses:
+        '200':
+          description: Existing Task projection.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/Task' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+  /internal/project-control/v1/tasks/{taskId}/attempts:
+    get:
+      operationId: listProjectControlTaskAttempts
+      parameters: [ { $ref: '#/components/parameters/TaskId' } ]
+      responses:
+        '200':
+          description: Existing Attempt projections.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskAttempt' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/tasks/{taskId}/retry:
+    post:
+      operationId: retryProjectControlTask
+      description: Creates a new Attempt for the current terminal Task while preserving its execution snapshots.
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/Actor' }
+      responses:
+        '202':
+          description: A distinct replacement Attempt was accepted.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/Task' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/tasks/{taskId}/cancel:
+    post:
+      operationId: cancelProjectControlTask
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/Actor' }
+      responses:
+        '202':
+          description: The current Attempt is cancelling or was already terminal.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/Task' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/tasks/{taskId}/archive:
+    post:
+      operationId: archiveProjectControlTask
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArchiveTaskRequest' }
+      responses:
+        '200':
+          description: Terminal Task marked archived while evidence remains durable.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskHistoryTask' } } }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/tasks/{taskId}/approvals:
+    get:
+      operationId: listProjectControlTaskApprovals
+      parameters: [ { $ref: '#/components/parameters/TaskId' } ]
+      responses:
+        '200':
+          description: Existing Approval projections.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../control-v1/openapi.yaml#/components/schemas/Approval' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/tasks/{taskId}/artifacts:
+    get:
+      operationId: listProjectControlTaskArtifacts
+      parameters: [ { $ref: '#/components/parameters/TaskId' } ]
+      responses:
+        '200':
+          description: Existing Artifact projections.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskArtifact' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/tasks/{taskId}/follow-ups:
+    get:
+      operationId: listProjectControlTaskFollowUps
+      parameters: [ { $ref: '#/components/parameters/TaskId' } ]
+      responses:
+        '200':
+          description: Existing Follow-up projections.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskFollowUp' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createProjectControlTaskFollowUp
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskFollowUpCommandRequest' }
+      responses:
+        '202':
+          description: Idempotently created Follow-up and replacement Attempt.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskFollowUp' } } }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/tasks/{taskId}/acceptance:
+    post:
+      operationId: acceptProjectControlTaskResult
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskAcceptanceCommandRequest' }
+      responses:
+        '200':
+          description: Idempotently recorded the user acceptance decision.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/TaskAcceptance' } } }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/approvals/{approvalId}/decision:
+    post:
+      operationId: decideProjectControlApproval
+      parameters:
+        - { $ref: '#/components/parameters/ApprovalId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/ApprovalDecisionRequest' }
+      responses:
+        '200':
+          description: Approval decision accepted by the existing Runtime boundary.
+          content: { application/json: { schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/Approval' } } }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '../control-v1/openapi.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/approval-policy:
+    get:
+      operationId: getProjectControlApprovalPolicy
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Existing project approval policy projection.
+          content:
+            application/json:
+              schema: { $ref: '../control-v1/openapi.yaml#/components/schemas/ProjectApprovalPolicy' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/workspace-bindings/{workspaceId}/confirm:
+    post:
+      operationId: confirmWorkspaceBindingProposal
+      description: >-
+        Applies only the current deterministic MOVE_WORKSPACE or REBIND_LOCAL_PROJECT proposal.
+        The caller must supply a user-derived actor and an idempotency key.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: workspaceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Zhishu-Actor
+          in: header
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmWorkspaceBindingRequest' }
+      responses:
+        '200':
+          description: Applied or idempotently replayed binding change.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceBindingChange' }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/state:
+    get:
+      operationId: getProjectStateSnapshot
+      parameters: [ { $ref: '#/components/parameters/ProjectId' } ]
+      responses:
+        '200':
+          description: Current rebuildable semantic state snapshot and active entries.
+          content:
+            application/json:
+              schema: { $ref: '../project-state-v1/project-state.schema.json#/$defs/ProjectStateSnapshotV1' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/state/initial-proposals:
+    post:
+      operationId: createInitialProjectStateProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InitialStateProposalInput' }
+      responses:
+        '201': { description: Validated proposal pending explicit confirmation. }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/state/proposals/{proposalId}/confirm:
+    post:
+      operationId: confirmProjectStateProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ProposalId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmStateProposalRequest' }
+      responses:
+        '200': { description: Applied or idempotently replayed Project Change. }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/state/proposals:
+    get:
+      operationId: listProjectStateProposals
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: proposalType
+          in: query
+          required: false
+          schema: { type: string, enum: [INITIAL_STATE, STATE_CHANGE] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Newest-first proposal audit history for the project.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectStateProposal' }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/state/steward/proposals:
+    post:
+      operationId: createStateStewardProposal
+      deprecated: true
+      description: >-
+        Trusted internal compatibility endpoint for an already structured report.
+        Browser clients must use the report-id endpoint so candidate text is derived
+        from immutable Execution Report and Artifact snapshots inside Project Control.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StructuredExecutionReportV1' }
+      responses:
+        '201':
+          description: Idempotently created or replayed State Change Proposal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectStateProposal' }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/state/steward/reports/{reportId}/proposal:
+    post:
+      operationId: createStateStewardProposalFromExecutionReport
+      description: >-
+        Derives StructuredExecutionReportV1 from immutable report and artifact snapshots.
+        The report must have PASSED Human Verification. FACT candidates are never inferred.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - { $ref: '#/components/parameters/Actor' }
+      responses:
+        '201':
+          description: Idempotently created or replayed State Change Proposal.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectStateProposal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/state/proposals/{proposalId}/reject:
+    post:
+      operationId: rejectProjectStateProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ProposalId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectStateProposalRequest' }
+      responses:
+        '200': { description: Audited rejection without changing State Revision. }
+        '400': { $ref: '../control-v1/openapi.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/changes:
+    get:
+      operationId: listProjectChanges
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { name: afterRevision, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Revision-ordered change feed for bounded polling. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/contexts:
+    post:
+      operationId: generateProjectContextPackage
+      parameters: [ { $ref: '#/components/parameters/ProjectId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GenerateContextRequest' }
+      responses:
+        '201':
+          description: Generated and archived explainable Context Package.
+          content:
+            application/json:
+              schema: { $ref: '../project-state-v1/project-state.schema.json#/$defs/ContextPackageV1' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/contexts/{packageId}:
+    get:
+      operationId: getArchivedProjectContextPackage
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - name: packageId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Exact archived Context Package payload.
+          content:
+            application/json:
+              schema: { $ref: '../project-state-v1/project-state.schema.json#/$defs/ContextPackageV1' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/brain/threads:
+    get:
+      operationId: listProjectBrainThreads
+      parameters: [ { $ref: '#/components/parameters/ProjectId' } ]
+      responses:
+        '200': { description: Project Brain threads. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createProjectBrainThread
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBrainThreadRequest' }
+      responses:
+        '201': { description: Created Brain Thread. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/brain/threads/{threadId}/messages:
+    get:
+      operationId: listProjectBrainMessages
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ThreadId' }
+      responses:
+        '200': { description: Audited user and Brain messages pinned to Context Packages. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/brain/threads/{threadId}/runs:
+    post:
+      operationId: recordProjectBrainRun
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ThreadId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordBrainRunRequest' }
+      responses:
+        '201': { description: Audited no-tool Brain Run and message pair. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans:
+    get:
+      operationId: listProjectPlans
+      parameters: [ { $ref: '#/components/parameters/ProjectId' } ]
+      responses:
+        '200': { description: Current published plans with immutable definitions and mutable execution state. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}:
+    get:
+      operationId: getProjectPlan
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+      responses:
+        '200': { description: Current Plan Version, nodes, dependencies and execution state. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedules:
+    get:
+      operationId: listParallelScheduleProposals
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Bounded Plan-scoped Parallel Schedule proposal and decision audit history.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ParallelSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createParallelScheduleProposal
+      description: >-
+        Proposes exactly two independent READY nodes with disjoint explicit scopes,
+        deterministic enabled Profiles, distinct logical isolated Workspace Leases, and an
+        explicit physical Workspace kind. GIT_WORKTREE freezes the server-bound repository
+        root and full HEAD commit; DIRECTORY_ONLY remains the marked-directory mode.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateParallelScheduleRequest' }
+      responses:
+        '201':
+          description: Pending proposal with two proposed assignments and two logical lease reservations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParallelSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/capability-matrix:
+    get:
+      operationId: getSchedulerCapabilityMatrix
+      description: >-
+        Read-only Scheduler and Worker Capability Matrix for the current Plan.
+        This operation explains enabled and disabled Profile matches, capability gaps,
+        node readiness, and active Schedule blockers without reserving workers or creating
+        Schedule, Lease, Work Order, Agent, branch, or Worktree state.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+      responses:
+        '200':
+          description: Plan-scoped read-only Scheduler and Worker Capability Matrix.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulerCapabilityMatrix' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedule-candidates:
+    get:
+      operationId: getSchedulerCandidatePairs
+      description: >-
+        Read-only deterministic evaluation of two-node Parallel Schedule candidates.
+        The result explains node readiness, Profile matching, transitive dependency direction,
+        normalized scope overlap, and active Schedule conflicts without reserving workers or
+        creating Schedule, Lease, Work Order, Agent, branch, or Worktree state.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          description: Bounded Plan-scoped two-node candidate evaluation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulerCandidatePairMatrix' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedule-recommendation:
+    get:
+      operationId: getSchedulerRecommendation
+      description: >-
+        Read-only deterministic ranking and recommendation over the bounded Parallel Schedule
+        candidate evaluation. The response exposes score components and selection reasons and
+        does not create Schedule, Lease, Work Order, Agent, branch, or Worktree state.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+      responses:
+        '200':
+          description: Stable candidate ranking and optional preferred pair.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchedulerRecommendation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedules/{scheduleId}/confirm:
+    post:
+      operationId: confirmParallelScheduleProposal
+      description: >-
+        Approves a current proposal and moves its assignments to READY_FOR_PROVISIONING.
+        No Work Order, Agent execution, or physical Worktree is created.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/ScheduleId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParallelScheduleDecisionRequest' }
+      responses:
+        '200':
+          description: Approved proposal and immutable approval event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParallelSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedules/{scheduleId}/reject:
+    post:
+      operationId: rejectParallelScheduleProposal
+      description: Rejects a pending proposal and releases both logical Workspace Leases.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/ScheduleId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectParallelScheduleRequest' }
+      responses:
+        '200':
+          description: Rejected proposal with released assignments, leases, and immutable decision event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParallelSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedules/{scheduleId}/workspace-leases/{leaseId}/provision:
+    post:
+      operationId: provisionParallelScheduleWorkspaceLease
+      description: >-
+        Claims one approved logical Lease and invokes the physical adapter frozen by
+        the Schedule. DIRECTORY_ONLY creates a marked directory. GIT_WORKTREE validates
+        the server-bound repository and frozen commit before creating a deterministic
+        isolated branch/Worktree. Interrupted operations are reconciler-recoverable.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/ScheduleId' }
+        - { $ref: '#/components/parameters/LeaseId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkspaceLeaseProvisionRequest' }
+      responses:
+        '200':
+          description: Schedule with the provisioned lease and durable ownership metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParallelSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/parallel-schedules/{scheduleId}/dispatch:
+    post:
+      operationId: dispatchParallelSchedule
+      description: >-
+        Atomically claims the two assignments of an approved Schedule after both
+        isolated Leases are physically provisioned. Each Work Order is bound
+        to its Schedule Assignment, Profile, Lease, and immutable workspace path;
+        the existing Execution Bridge then dispatches both Tasks. This operation
+        does not invoke Git, create a Worktree, merge, apply, build, or test.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/ScheduleId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParallelScheduleDispatchRequest' }
+      responses:
+        '201':
+          description: Idempotently dispatched Schedule with exactly two Work Orders.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParallelScheduleDispatch' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates:
+    get:
+      operationId: listIntegrationGateProposals
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Bounded proposal-only Integration Gate history for a Plan.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/IntegrationGate' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createIntegrationGateProposal
+      description: >-
+        Creates an evidence-only Integration Gate proposal from an approved and
+        physically provisioned Parallel Schedule. It never creates Work Orders,
+        runs Agents, invokes Git, merges, applies, builds, or tests.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateIntegrationGateRequest' }
+      responses:
+        '201':
+          description: Proposal with applyState NOT_ATTEMPTED and a sealed immutable evidence snapshot manifest.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationGate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}:
+    get:
+      operationId: getIntegrationGateProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+      responses:
+        '200':
+          description: Integration Gate proposal, captured evidence snapshots, and immutable event history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationGate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/confirm:
+    post:
+      operationId: confirmIntegrationGateProposal
+      description: >-
+        Approves the evidence-only proposal. applyState remains NOT_ATTEMPTED;
+        this operation is not evidence that a merge, build, test, or Agent run occurred.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationGateDecisionRequest' }
+      responses:
+        '200':
+          description: Approved proposal with applyState NOT_ATTEMPTED.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationGate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/reject:
+    post:
+      operationId: rejectIntegrationGateProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectIntegrationGateRequest' }
+      responses:
+        '200':
+          description: Rejected proposal with immutable decision event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationGate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/executions:
+    post:
+      operationId: executeIntegrationGate
+      description: >-
+        Asynchronously claims an approved GIT_WORKTREE Integration Gate and applies both
+        verified Worker results in a separate Integration Worktree. The primary Worktree is
+        never modified. Build/test commands come from a frozen server-owned NPM or MAVEN
+        project preset; clients never submit argv. Failures produce
+        durable step evidence and an approval-only automatic Replan Proposal.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationExecutionRequest' }
+      responses:
+        '201':
+          description: Claimed Integration Run, normally in PREPARING while background steps execute.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationExecution' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/executions/{runId}:
+    get:
+      operationId: getIntegrationExecution
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Durable Integration Run and bounded apply/build/test evidence.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationExecution' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/executions/{runId}/finalize:
+    post:
+      operationId: finalizeIntegrationExecution
+      description: >-
+        Explicitly fast-forwards the clean, attached primary Worktree from the frozen base
+        commit to the exact successful candidate commit, then removes only the ownership-marked
+        Integration Worktree and local Integration branch. It never contacts a remote and never
+        creates a merge commit. Apply and cleanup are resumable and durably audited.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationFinalizationRequest' }
+      responses:
+        '200':
+          description: Durable finalization state, including resumable apply or cleanup failure.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationExecution' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/{planId}/integration-gates/{gateId}/executions/{runId}/agent:
+    post:
+      operationId: startIntegrationAgent
+      description: Starts the existing Runtime Agent only in a retained failed Integration Worktree.
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/PlanId' }
+        - { $ref: '#/components/parameters/GateId' }
+        - { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationAgentRequest' }
+      responses:
+        '201':
+          description: Integration Agent Run bound to an existing Task/Attempt and isolated workspace.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationAgentRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/proposals:
+    get:
+      operationId: listPlanProposals
+      parameters: [ { $ref: '#/components/parameters/ProjectId' } ]
+      responses:
+        '200': { description: Plan proposals with computed version diff. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createPlanProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '../project-intelligence-v1/plan-proposal.schema.json' }
+      responses:
+        '201': { description: Pending proposal; no Plan Version or Task is created. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/proposals/{proposalId}/publish:
+    post:
+      operationId: publishPlanProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ProposalId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishPlanProposalRequest' }
+      responses:
+        '201': { description: Immutable Plan Version published after stale and capability validation. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/plans/proposals/{proposalId}/reject:
+    post:
+      operationId: rejectPlanProposal
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/ProposalId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectPlanProposalRequest' }
+      responses:
+        '200': { description: Rejected proposal with actor and reason. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/work-orders:
+    get:
+      operationId: listWorkOrders
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { name: planId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: nodeKey, in: query, required: false, schema: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: Historical Work Orders and their existing Task bindings.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '../work-order-v1/work-order.schema.json' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/project-control/v1/projects/{projectId}/work-orders/{workOrderId}:
+    get:
+      operationId: getWorkOrder
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/WorkOrderId' }
+      responses:
+        '200':
+          description: Replayable Work Order, binding, reports, verifications and events.
+          content:
+            application/json:
+              schema: { $ref: '../work-order-v1/work-order.schema.json' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/work-orders/claims:
+    post:
+      operationId: claimAndDispatchWorkOrder
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClaimWorkOrderRequest' }
+      responses:
+        '201':
+          description: Idempotently claimed Work Order bound to exactly one existing Task and first Attempt.
+          content:
+            application/json:
+              schema: { $ref: '../work-order-v1/work-order.schema.json' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/work-orders/{workOrderId}/verifications:
+    post:
+      operationId: verifyExecutionReport
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/WorkOrderId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyExecutionReportRequest' }
+      responses:
+        '201': { description: Human Verification plus fresh Brain Context handoff. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+  /internal/project-control/v1/projects/{projectId}/work-orders/{workOrderId}/brain-handoff:
+    post:
+      operationId: recordWorkOrderBrainHandoff
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/WorkOrderId' }
+        - { $ref: '#/components/parameters/Actor' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkOrderBrainHandoffRequest' }
+      responses:
+        '201': { description: Replay-safe audited Brain summary pinned to the post-reducer Context Package. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '../control-v1/openapi.yaml#/components/responses/Conflict' }
+components:
+  securitySchemes:
+    projectControlToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-service-token
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProposalId:
+      name: proposalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Actor:
+      name: X-Zhishu-Actor
+      in: header
+      required: true
+      schema: { type: string, minLength: 1 }
+    ThreadId:
+      name: threadId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ScheduleId:
+      name: scheduleId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LeaseId:
+      name: leaseId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GateId:
+      name: gateId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ApprovalId:
+      name: approvalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    WorkOrderId:
+      name: workOrderId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    CreateParallelScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, baseStateRevision, basePlanVersion, nodeKeys]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        nodeKeys:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        physicalWorkspaceKind:
+          type: string
+          enum: [DIRECTORY_ONLY, GIT_WORKTREE]
+          default: DIRECTORY_ONLY
+    ParallelScheduleDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+    RejectParallelScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, reason]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    WorkspaceLeaseProvisionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+    ParallelScheduleDispatchRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+    CreateIntegrationGateRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, scheduleId, baseStateRevision, basePlanVersion]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        scheduleId: { type: string, format: uuid }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        evidenceReferenceIds:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    IntegrationGateDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+    RejectIntegrationGateRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, reason]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    IntegrationExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+    IntegrationFinalizationRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, candidateCommit]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        candidateCommit: { type: string, pattern: '^[0-9a-f]{40,64}$' }
+    IntegrationAgentRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        profileId: { type: [string, 'null'], format: uuid }
+    IntegrationGate:
+      type: object
+      additionalProperties: false
+      required:
+        - gateId
+        - projectId
+        - planId
+        - planVersionId
+        - scheduleId
+        - schemaVersion
+        - status
+        - gateMode
+        - applyState
+        - evidenceStatus
+        - evidenceCount
+        - baseStateRevision
+        - basePlanVersion
+        - proposal
+        - conflictAssessment
+        - evidenceReferenceIds
+        - evidence
+        - clientRequestId
+        - createdBy
+        - createdAt
+        - decidedBy
+        - decidedAt
+        - decisionReason
+        - events
+        - executions
+      properties:
+        gateId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        scheduleId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        status: { type: string, enum: [PENDING_APPROVAL, APPROVED, REJECTED, STALE] }
+        gateMode: { type: string, const: EVIDENCE_ONLY }
+        applyState:
+          type: string
+          enum: [NOT_ATTEMPTED, PREPARING, APPLYING, BUILDING, TESTING, SUCCEEDED, FAILED, CLEANUP_PENDING]
+        evidenceStatus: { type: string, enum: [MISSING, PRESENT] }
+        evidenceCount: { type: integer, minimum: 0, maximum: 100 }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        proposal: { type: object }
+        conflictAssessment: { type: object }
+        evidenceReferenceIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        evidence:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/IntegrationGateEvidence' }
+        clientRequestId: { type: string, minLength: 1 }
+        createdBy: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        decidedBy: { type: [string, 'null'] }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        decisionReason: { type: [string, 'null'] }
+        events:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/IntegrationGateEvent' }
+        executions:
+          type: array
+          items: { $ref: '#/components/schemas/IntegrationExecution' }
+    IntegrationExecution:
+      type: object
+      additionalProperties: false
+      required: [runId, projectId, planId, gateId, attemptNumber, status, repositoryRoot, baseCommit,
+        candidateCommit, integrationWorkspacePath, integrationBranchRef, workspaceState, finalizationState,
+        finalizedTargetRef, finalizedAt, finalizationFailureMessage, policyPreset, buildCommandSummary,
+        testCommandSummary, createdBy, createdAt, replayed, steps]
+      properties:
+        runId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        gateId: { type: string, format: uuid }
+        attemptNumber: { type: integer, minimum: 1 }
+        status: { type: string, enum: [PREPARING, APPLYING, BUILDING, TESTING, SUCCEEDED, FAILED, CLEANUP_PENDING, CANCELLED] }
+        repositoryRoot: { type: string, minLength: 1 }
+        baseCommit: { type: string, pattern: '^[0-9a-f]{40,64}$' }
+        candidateCommit: { type: [string, 'null'], pattern: '^[0-9a-f]{40,64}$' }
+        integrationWorkspacePath: { type: string, minLength: 1 }
+        integrationBranchRef: { type: string, minLength: 1 }
+        workspaceState: { type: string, enum: [RETAINED, CLEANUP_PENDING, CLEANED] }
+        failureCode: { type: [string, 'null'] }
+        failureMessage: { type: [string, 'null'] }
+        buildExitCode: { type: [integer, 'null'] }
+        testExitCode: { type: [integer, 'null'] }
+        replanProposalId: { type: [string, 'null'], format: uuid }
+        finalizationState:
+          type: string
+          enum: [NOT_REQUESTED, APPLYING, APPLIED, APPLY_FAILED, CLEANUP_PENDING, CLEANED]
+        finalizedTargetRef: { type: [string, 'null'] }
+        finalizedAt: { type: [string, 'null'], format: date-time }
+        finalizationFailureMessage: { type: [string, 'null'] }
+        policyPreset: { type: [string, 'null'], enum: [NPM, MAVEN, null] }
+        buildCommandSummary: { type: [string, 'null'] }
+        testCommandSummary: { type: [string, 'null'] }
+        createdBy: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        replayed: { type: boolean }
+        steps: { type: array, items: { $ref: '#/components/schemas/IntegrationExecutionStep' } }
+    IntegrationExecutionStep:
+      type: object
+      additionalProperties: false
+      required: [stepId, ordinal, stepType, status, commandSummary, stdoutSummary, stderrSummary, startedAt]
+      properties:
+        stepId: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 0 }
+        stepType: { type: string, enum: [APPLY_WORKER, CREATE_CANDIDATE, BUILD, TEST] }
+        assignmentId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [RUNNING, SUCCEEDED, FAILED, SKIPPED] }
+        commandSummary: { type: string, minLength: 1 }
+        exitCode: { type: [integer, 'null'] }
+        stdoutSummary: { type: string }
+        stderrSummary: { type: string }
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+    IntegrationAgentRun:
+      type: object
+      additionalProperties: false
+      required: [agentRunId, projectId, gateId, integrationRunId, profileId, status, objective, createdBy, createdAt, replayed]
+      properties:
+        agentRunId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        gateId: { type: string, format: uuid }
+        integrationRunId: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        taskId: { type: [string, 'null'], format: uuid }
+        attemptId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [PREPARING, RUNNING, SUCCEEDED, FAILED, CANCELLED] }
+        objective: { type: string, minLength: 1 }
+        createdBy: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        failureMessage: { type: [string, 'null'] }
+        replayed: { type: boolean }
+    IntegrationGateEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - evidenceReferenceId
+        - projectId
+        - artifactId
+        - artifactHash
+        - sourceType
+        - sourceId
+        - purpose
+        - referenceCreatedAt
+        - capturedAt
+      properties:
+        evidenceReferenceId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        artifactId: { type: string, format: uuid }
+        artifactHash: { type: [string, 'null'] }
+        sourceType: { type: string, minLength: 1 }
+        sourceId: { type: string, format: uuid }
+        purpose: { type: string, minLength: 1 }
+        referenceCreatedAt: { type: string, format: date-time }
+        capturedAt: { type: string, format: date-time }
+    IntegrationGateEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, actor, payload, occurredAt]
+      properties:
+        eventId: { type: integer, format: int64, minimum: 1 }
+        eventType: { type: string, enum: [PROPOSED, APPROVED, REJECTED, STALE] }
+        actor: { type: string, minLength: 1 }
+        payload: { type: object }
+        occurredAt: { type: string, format: date-time }
+    SchedulerCapabilityMatrix:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - planId
+        - planVersionId
+        - schemaVersion
+        - baseStateRevision
+        - basePlanVersion
+        - maxWorkers
+        - summary
+        - profiles
+        - nodes
+        - generatedAt
+      properties:
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        maxWorkers: { type: integer, const: 2 }
+        summary: { $ref: '#/components/schemas/SchedulerCapabilityMatrixSummary' }
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulerCapabilityProfile' }
+        nodes:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulerCapabilityNode' }
+        generatedAt: { type: string, format: date-time }
+    SchedulerCapabilityMatrixSummary:
+      type: object
+      additionalProperties: false
+      required: [profileCount, enabledProfileCount, nodeCount, schedulableNodeCount, blockedNodeCount]
+      properties:
+        profileCount: { type: integer, minimum: 0 }
+        enabledProfileCount: { type: integer, minimum: 0 }
+        nodeCount: { type: integer, minimum: 0 }
+        schedulableNodeCount: { type: integer, minimum: 0 }
+        blockedNodeCount: { type: integer, minimum: 0 }
+    SchedulerCapabilityProfile:
+      type: object
+      additionalProperties: false
+      required: [profileId, profileName, executor, enabled, capabilities]
+      properties:
+        profileId: { type: string, format: uuid }
+        profileName: { type: string, minLength: 1 }
+        executor: { type: string, minLength: 1 }
+        enabled: { type: boolean }
+        capabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+    SchedulerCapabilityNode:
+      type: object
+      additionalProperties: false
+      required:
+        - nodeKey
+        - title
+        - executionState
+        - executable
+        - scope
+        - requiredCapabilities
+        - eligibleProfileCount
+        - schedulable
+        - activeSchedule
+        - blockers
+        - profileMatches
+      properties:
+        nodeKey: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        executionState: { type: string, minLength: 1 }
+        executable: { type: boolean }
+        scope:
+          type: array
+          items: { type: string, minLength: 1 }
+        requiredCapabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        eligibleProfileCount: { type: integer, minimum: 0 }
+        schedulable: { type: boolean }
+        activeSchedule: { type: boolean }
+        blockers:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [NODE_NOT_EXECUTABLE, NODE_NOT_READY, SCOPE_MISSING, CAPABILITY_UNSATISFIED, ACTIVE_SCHEDULE_EXISTS]
+        profileMatches:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulerCapabilityProfileMatch' }
+    SchedulerCapabilityProfileMatch:
+      type: object
+      additionalProperties: false
+      required: [profileId, profileName, executor, enabled, capabilities, missingCapabilities, eligible]
+      properties:
+        profileId: { type: string, format: uuid }
+        profileName: { type: string, minLength: 1 }
+        executor: { type: string, minLength: 1 }
+        enabled: { type: boolean }
+        capabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        missingCapabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        eligible: { type: boolean }
+    SchedulerCandidatePairMatrix:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - planId
+        - planVersionId
+        - schemaVersion
+        - baseStateRevision
+        - basePlanVersion
+        - maxWorkers
+        - summary
+        - candidates
+        - generatedAt
+      properties:
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        maxWorkers: { type: integer, const: 2 }
+        summary: { $ref: '#/components/schemas/SchedulerCandidatePairSummary' }
+        candidates:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/SchedulerCandidatePair' }
+        generatedAt: { type: string, format: date-time }
+    SchedulerCandidatePairSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - nodeCount
+        - totalPairCount
+        - evaluatedPairCount
+        - eligiblePairCount
+        - blockedPairCount
+        - truncated
+      properties:
+        nodeCount: { type: integer, minimum: 0 }
+        totalPairCount: { type: integer, format: int64, minimum: 0 }
+        evaluatedPairCount: { type: integer, minimum: 0, maximum: 500 }
+        eligiblePairCount: { type: integer, minimum: 0, maximum: 500 }
+        blockedPairCount: { type: integer, minimum: 0, maximum: 500 }
+        truncated: { type: boolean }
+    SchedulerCandidatePair:
+      type: object
+      additionalProperties: false
+      required:
+        - pairKey
+        - leftNode
+        - rightNode
+        - dependencyAssessment
+        - dependencyDirection
+        - scopeAssessment
+        - scopeConflicts
+        - workspaceIsolation
+        - activeScheduleConflict
+        - eligible
+        - blockers
+      properties:
+        pairKey: { type: string, minLength: 1 }
+        leftNode: { $ref: '#/components/schemas/SchedulerCandidateNode' }
+        rightNode: { $ref: '#/components/schemas/SchedulerCandidateNode' }
+        dependencyAssessment: { type: string, enum: [CLEAR, CONFLICT] }
+        dependencyDirection:
+          type: string
+          enum: [NONE, LEFT_DEPENDS_ON_RIGHT, RIGHT_DEPENDS_ON_LEFT, BIDIRECTIONAL]
+        scopeAssessment: { type: string, enum: [DISJOINT, OVERLAP, MISSING, TOO_BROAD] }
+        scopeConflicts:
+          type: array
+          items: { $ref: '#/components/schemas/SchedulerScopeConflict' }
+        workspaceIsolation: { type: string, const: REQUIRED }
+        activeScheduleConflict: { type: boolean }
+        eligible: { type: boolean }
+        blockers:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - LEFT_NODE_BLOCKED
+              - RIGHT_NODE_BLOCKED
+              - DEPENDENCY_CONFLICT
+              - SCOPE_OVERLAP
+              - SCOPE_MISSING
+              - SCOPE_TOO_BROAD
+    SchedulerCandidateNode:
+      type: object
+      additionalProperties: false
+      required:
+        - nodeKey
+        - title
+        - executionState
+        - scope
+        - requiredCapabilities
+        - matchedProfile
+        - schedulable
+        - blockers
+      properties:
+        nodeKey: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        executionState: { type: string, minLength: 1 }
+        scope:
+          type: array
+          items: { type: string, minLength: 1 }
+        requiredCapabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        matchedProfile:
+          oneOf:
+            - { $ref: '#/components/schemas/SchedulerCandidateMatchedProfile' }
+            - { type: 'null' }
+        schedulable: { type: boolean }
+        blockers:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [NODE_NOT_EXECUTABLE, NODE_NOT_READY, SCOPE_MISSING, CAPABILITY_UNSATISFIED, ACTIVE_SCHEDULE_EXISTS]
+    SchedulerCandidateMatchedProfile:
+      type: object
+      additionalProperties: false
+      required: [profileId, profileName, executor]
+      properties:
+        profileId: { type: string, format: uuid }
+        profileName: { type: string, minLength: 1 }
+        executor: { type: string, minLength: 1 }
+    SchedulerScopeConflict:
+      type: object
+      additionalProperties: false
+      required: [leftScope, rightScope]
+      properties:
+        leftScope: { type: string, minLength: 1 }
+        rightScope: { type: string, minLength: 1 }
+    SchedulerRecommendation:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - planId
+        - planVersionId
+        - schemaVersion
+        - baseStateRevision
+        - basePlanVersion
+        - maxWorkers
+        - recommendationFingerprint
+        - baseline
+        - determinism
+        - summary
+        - recommendation
+        - rankedCandidates
+        - generatedAt
+      properties:
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        maxWorkers: { type: integer, const: 2 }
+        recommendationFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' }
+        baseline: { $ref: '#/components/schemas/SchedulerRecommendationBaseline' }
+        determinism: { $ref: '#/components/schemas/SchedulerRecommendationDeterminism' }
+        summary: { $ref: '#/components/schemas/SchedulerRecommendationSummary' }
+        recommendation: { $ref: '#/components/schemas/SchedulerRecommendationDecision' }
+        rankedCandidates:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SchedulerRankedCandidate' }
+        generatedAt: { type: string, format: date-time }
+    SchedulerRecommendationBaseline:
+      type: object
+      additionalProperties: false
+      required: [planVersionId, planVersion, stateRevision, status]
+      properties:
+        planVersionId: { type: string, format: uuid }
+        planVersion: { type: integer, format: int64, minimum: 1 }
+        stateRevision: { type: integer, format: int64, minimum: 0 }
+        status: { type: string, const: CURRENT_SNAPSHOT }
+    SchedulerRecommendationDeterminism:
+      type: object
+      additionalProperties: false
+      required: [orderingRule, scoreModelVersion, candidateEvaluationLimit, rankLimit, stable]
+      properties:
+        orderingRule: { type: string, const: ELIGIBLE_DESC_SCORE_DESC_PAIR_KEY_ASC }
+        scoreModelVersion: { type: string, const: scheduler-score-v1 }
+        candidateEvaluationLimit: { type: integer, const: 500 }
+        rankLimit: { type: integer, const: 50 }
+        stable: { type: boolean, const: true }
+    SchedulerRecommendationSummary:
+      type: object
+      additionalProperties: false
+      required: [evaluatedPairCount, eligiblePairCount, blockedPairCount, rankedCandidateCount, truncated]
+      properties:
+        evaluatedPairCount: { type: integer, minimum: 0, maximum: 500 }
+        eligiblePairCount: { type: integer, minimum: 0, maximum: 500 }
+        blockedPairCount: { type: integer, minimum: 0, maximum: 500 }
+        rankedCandidateCount: { type: integer, minimum: 0, maximum: 50 }
+        truncated: { type: boolean }
+    SchedulerRecommendationDecision:
+      type: object
+      additionalProperties: false
+      required: [status, pairKey, rank, score, reasons]
+      properties:
+        status: { type: string, enum: [RECOMMENDED, NO_ELIGIBLE_CANDIDATE, EVALUATION_TRUNCATED] }
+        pairKey:
+          oneOf:
+            - { type: string, minLength: 1 }
+            - { type: 'null' }
+        rank:
+          oneOf:
+            - { type: integer, minimum: 1, maximum: 50 }
+            - { type: 'null' }
+        score:
+          oneOf:
+            - { type: integer, format: int64 }
+            - { type: 'null' }
+        reasons:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+    SchedulerRankedCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - rank
+        - pairKey
+        - leftNodeKey
+        - rightNodeKey
+        - eligible
+        - score
+        - scoreBreakdown
+        - reasons
+        - blockers
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 50 }
+        pairKey: { type: string, minLength: 1 }
+        leftNodeKey: { type: string, minLength: 1 }
+        rightNodeKey: { type: string, minLength: 1 }
+        eligible: { type: boolean }
+        score: { type: integer, format: int64 }
+        scoreBreakdown: { $ref: '#/components/schemas/SchedulerScoreBreakdown' }
+        reasons:
+          type: array
+          items: { type: string, minLength: 1 }
+        blockers:
+          type: array
+          items: { type: string, minLength: 1 }
+    SchedulerScoreBreakdown:
+      type: object
+      additionalProperties: false
+      required:
+        - eligibility
+        - nodeReadiness
+        - planPriority
+        - dependency
+        - scope
+        - profileMatch
+        - scheduleAvailability
+        - blockerPenalty
+      properties:
+        eligibility: { type: integer, format: int64 }
+        nodeReadiness: { type: integer, format: int64 }
+        planPriority: { type: integer, format: int64 }
+        dependency: { type: integer, format: int64 }
+        scope: { type: integer, format: int64 }
+        profileMatch: { type: integer, format: int64 }
+        scheduleAvailability: { type: integer, format: int64 }
+        blockerPenalty: { type: integer, format: int64 }
+    ParallelSchedule:
+      type: object
+      additionalProperties: false
+      required:
+        - scheduleId
+        - projectId
+        - planId
+        - planVersionId
+        - schemaVersion
+        - status
+        - baseStateRevision
+        - basePlanVersion
+        - maxWorkers
+        - conflictAssessment
+        - clientRequestId
+        - createdBy
+        - createdAt
+        - decidedBy
+        - decidedAt
+        - decisionReason
+        - assignments
+        - events
+      properties:
+        scheduleId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        planVersionId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        status: { type: string, enum: [PENDING_APPROVAL, APPROVED, REJECTED, STALE] }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        basePlanVersion: { type: integer, format: int64, minimum: 1 }
+        maxWorkers: { type: integer, const: 2 }
+        conflictAssessment:
+          type: object
+          additionalProperties: false
+          required: [dependency, scope, workspaceIsolation, automaticMerge, maxWorkers]
+          properties:
+            dependency: { type: string, const: CLEAR }
+            scope: { type: string, const: DISJOINT }
+            workspaceIsolation: { type: string, const: REQUIRED }
+            automaticMerge: { type: boolean, const: false }
+            maxWorkers: { type: integer, const: 2 }
+            physicalWorkspaceKind: { type: string, enum: [DIRECTORY_ONLY, GIT_WORKTREE] }
+            repositoryRoot: { type: string }
+            baseCommit: { type: string, pattern: '^[0-9a-f]{40,64}$' }
+        clientRequestId: { type: string, minLength: 1 }
+        createdBy: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        decidedBy: { type: [string, 'null'] }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        decisionReason: { type: [string, 'null'] }
+        assignments:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/ParallelScheduleAssignment' }
+        events:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ParallelScheduleEvent' }
+    ParallelScheduleDispatch:
+      type: object
+      additionalProperties: false
+      required: [dispatchId, scheduleId, planId, replayed, workOrders]
+      properties:
+        dispatchId: { type: string, format: uuid }
+        scheduleId: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        replayed: { type: boolean }
+        workOrders:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '../work-order-v1/work-order.schema.json' }
+    ParallelScheduleAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - assignmentId
+        - nodeKey
+        - workerSlot
+        - profileId
+        - profileName
+        - executor
+        - status
+        - scope
+        - requiredCapabilities
+        - profileCapabilities
+        - workspaceLease
+      properties:
+        assignmentId: { type: string, format: uuid }
+        nodeKey: { type: string, minLength: 1 }
+        workerSlot: { type: integer, minimum: 1, maximum: 2 }
+        profileId: { type: string, format: uuid }
+        profileName: { type: string, minLength: 1 }
+        executor: { type: string, minLength: 1 }
+        status: { type: string, enum: [PROPOSED, READY_FOR_PROVISIONING, PROVISIONED, RUNNING, VERIFIED, FAILED, CANCELLED] }
+        scope:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+        requiredCapabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        profileCapabilities:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+        workspaceLease: { $ref: '#/components/schemas/WorkspaceLease' }
+    WorkspaceLease:
+      type: object
+      additionalProperties: false
+      required:
+        - leaseId
+        - workspaceMode
+        - physicalWorkspaceKind
+        - workspaceRef
+        - branchRef
+        - status
+        - provisioningState
+        - workspacePath
+        - leaseExpiresAt
+        - provisioningStartedAt
+        - provisionedAt
+        - failureCode
+        - failureMessage
+        - cleanedAt
+        - createdAt
+        - releasedAt
+      properties:
+        leaseId: { type: string, format: uuid }
+        workspaceMode: { type: string, const: ISOLATED_WORKTREE }
+        physicalWorkspaceKind:
+          type: string
+          enum: [DIRECTORY_ONLY, GIT_WORKTREE]
+          description: Physical implementation actually provisioned; DIRECTORY_ONLY is not a Git Worktree.
+        workspaceRef:
+          type: string
+          minLength: 1
+          description: Logical reservation identity; not a filesystem path or provisioning proof.
+        branchRef:
+          type: string
+          minLength: 1
+          description: Deterministic branch identity; materialized only for GIT_WORKTREE Leases.
+        status: { type: string, enum: [RESERVED, PROVISIONED, RELEASED, EXPIRED] }
+        provisioningState: { type: string, enum: [NOT_STARTED, PROVISIONING, PROVISIONED, FAILED, CLEANUP_PENDING, CLEANED] }
+        workspacePath:
+          type: [string, 'null']
+          description: Control Plane-owned DIRECTORY_ONLY or GIT_WORKTREE path below the provisioning root.
+        leaseExpiresAt: { type: [string, 'null'], format: date-time }
+        provisioningStartedAt: { type: [string, 'null'], format: date-time }
+        provisionedAt: { type: [string, 'null'], format: date-time }
+        failureCode: { type: [string, 'null'] }
+        failureMessage: { type: [string, 'null'] }
+        cleanedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        releasedAt: { type: [string, 'null'], format: date-time }
+    ParallelScheduleEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, actor, payload, occurredAt]
+      properties:
+        eventId: { type: integer, format: int64, minimum: 1 }
+        eventType:
+          type: string
+          enum: [PROPOSED, APPROVED, REJECTED, STALE, DISPATCHED, ASSIGNMENT_EXECUTION_CHANGED]
+        actor: { type: string, minLength: 1 }
+        payload: { type: object }
+        occurredAt: { type: string, format: date-time }
+    ArchiveTaskRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+    TaskHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, hasMore]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/TaskHistoryTask' }
+        nextCursor: { type: [string, 'null'], maxLength: 500 }
+        hasMore: { type: boolean }
+    ProjectActivityPage:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - projectId
+        - status
+        - requestedAfterCursor
+        - latestCursor
+        - retentionFloorCursor
+        - nextCursor
+        - hasMore
+        - events
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        projectId: { type: string, format: uuid }
+        status: { type: string, enum: [READY, RESYNC_REQUIRED] }
+        requestedAfterCursor: { type: [integer, 'null'], format: int64, minimum: 0 }
+        latestCursor: { type: integer, format: int64, minimum: 0 }
+        retentionFloorCursor: { type: integer, format: int64, minimum: 0 }
+        nextCursor: { type: integer, format: int64, minimum: 0 }
+        hasMore: { type: boolean }
+        events:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/ProjectActivityEvent' }
+    ProjectActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [cursor, eventId, projectId, changeType, resourceType, resourceId, taskId, attemptId, sourceEventId, occurredAt]
+      properties:
+        cursor: { type: integer, format: int64, minimum: 1 }
+        eventId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        changeType: { type: string, minLength: 1 }
+        resourceType: { type: string, minLength: 1 }
+        resourceId: { type: string, minLength: 1 }
+        taskId: { type: [string, 'null'], format: uuid }
+        attemptId: { type: [string, 'null'], format: uuid }
+        sourceEventId: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }
+    ProjectMetrics:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, projectId, windowHours, generatedAt, attempts, tokens, activity]
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        projectId: { type: string, format: uuid }
+        windowHours: { type: integer, minimum: 1, maximum: 2160 }
+        generatedAt: { type: string, format: date-time }
+        attempts:
+          type: object
+          additionalProperties: false
+          required: [total, terminal, succeeded, failed, lost, aborted, active, unknownHealth, lostHealth, failureRate, p50DurationMs, p95DurationMs]
+          properties:
+            total: { type: integer, format: int64, minimum: 0 }
+            terminal: { type: integer, format: int64, minimum: 0 }
+            succeeded: { type: integer, format: int64, minimum: 0 }
+            failed: { type: integer, format: int64, minimum: 0 }
+            lost: { type: integer, format: int64, minimum: 0 }
+            aborted: { type: integer, format: int64, minimum: 0 }
+            active: { type: integer, format: int64, minimum: 0 }
+            unknownHealth: { type: integer, format: int64, minimum: 0 }
+            lostHealth: { type: integer, format: int64, minimum: 0 }
+            failureRate: { type: number, minimum: 0, maximum: 1 }
+            p50DurationMs: { type: integer, format: int64, minimum: 0 }
+            p95DurationMs: { type: integer, format: int64, minimum: 0 }
+        tokens:
+          type: object
+          additionalProperties: false
+          required: [brainRuns, inputTokens, outputTokens, totalTokens]
+          properties:
+            brainRuns: { type: integer, format: int64, minimum: 0 }
+            inputTokens: { type: integer, format: int64, minimum: 0 }
+            outputTokens: { type: integer, format: int64, minimum: 0 }
+            totalTokens: { type: integer, format: int64, minimum: 0 }
+        activity:
+          type: object
+          additionalProperties: false
+          required: [eventCount, latestCursor, retentionFloorCursor, latestEventAt, latestEventLagMs]
+          properties:
+            eventCount: { type: integer, format: int64, minimum: 0 }
+            latestCursor: { type: integer, format: int64, minimum: 0 }
+            retentionFloorCursor: { type: integer, format: int64, minimum: 0 }
+            latestEventAt: { type: [string, 'null'], format: date-time }
+            latestEventLagMs: { type: [integer, 'null'], format: int64, minimum: 0 }
+    TaskHistoryTask:
+      type: object
+      additionalProperties: false
+      required:
+        - taskId
+        - projectId
+        - profileId
+        - title
+        - objective
+        - status
+        - attemptStatus
+        - resolutionStatus
+        - attemptId
+        - attemptNumber
+        - runtimeRunId
+        - runtimeHealthStatus
+        - lastHeartbeatAt
+        - leaseExpiresAt
+        - unknownSince
+        - lostAt
+        - lostReason
+        - createdAt
+        - startedAt
+        - completedAt
+        - errorCode
+        - errorMessage
+        - archivedAt
+        - archivedBy
+        - archiveReason
+      properties:
+        taskId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        title: { type: string, minLength: 1 }
+        objective: { type: string, minLength: 1 }
+        status: { type: string, enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED] }
+        attemptStatus: { type: string, enum: [PENDING, STARTING, RUNNING, WAITING_APPROVAL, CANCELLING, SUCCEEDED, FAILED, LOST, ABORTED] }
+        resolutionStatus: { type: string, enum: [OPEN, IN_PROGRESS, WAITING_ACCEPTANCE, NEEDS_FOLLOW_UP, RESOLVED, CLOSED] }
+        attemptId: { type: [string, 'null'], format: uuid }
+        attemptNumber: { type: [integer, 'null'], minimum: 1 }
+        runtimeRunId: { type: [string, 'null'] }
+        runtimeHealthStatus: { type: [string, 'null'], enum: [NOT_MONITORED, HEALTHY, UNKNOWN, LOST, TERMINATED, null] }
+        lastHeartbeatAt: { type: [string, 'null'], format: date-time }
+        leaseExpiresAt: { type: [string, 'null'], format: date-time }
+        unknownSince: { type: [string, 'null'], format: date-time }
+        lostAt: { type: [string, 'null'], format: date-time }
+        lostReason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        errorCode: { type: [string, 'null'] }
+        errorMessage: { type: [string, 'null'] }
+        archivedAt: { type: [string, 'null'], format: date-time }
+        archivedBy: { type: [string, 'null'] }
+        archiveReason: { type: [string, 'null'] }
+    TaskFollowUpCommandRequest:
+      type: object
+      additionalProperties: false
+      required: [parentAttemptId, clientRequestId, feedback, requestedAcceptance]
+      properties:
+        parentAttemptId: { type: string, format: uuid }
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+        feedback: { type: string, minLength: 1, maxLength: 20000 }
+        requestedAcceptance: { type: string, minLength: 1, maxLength: 20000 }
+        connectionRef: { type: [string, 'null'] }
+        executor: { type: [string, 'null'], enum: [claude, codex, opencode, null] }
+        modelAlias: { type: [string, 'null'] }
+        approvalMode: { type: [string, 'null'], enum: [MANUAL, AUTO_SAFE, AUTO_TRUSTED, null] }
+        additionalContext: { type: object }
+    TaskAcceptanceCommandRequest:
+      type: object
+      additionalProperties: false
+      required: [attemptId, clientRequestId, decision, reason]
+      properties:
+        attemptId: { type: string, format: uuid }
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+        decision: { type: string, enum: [RESOLVED, NEEDS_FOLLOW_UP, CLOSED] }
+        reason: { type: string, minLength: 1, maxLength: 20000 }
+    ClaimWorkOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, planId, nodeKey, profileId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 160 }
+        planId: { type: string, format: uuid }
+        nodeKey: { type: string, minLength: 1 }
+        profileId: { type: string, format: uuid }
+        approvalMode: { type: string, enum: [MANUAL, AUTO_SAFE, AUTO_TRUSTED] }
+    VerifyExecutionReportRequest:
+      type: object
+      additionalProperties: false
+      required: [reportId, decision, reason]
+      properties:
+        reportId: { type: string, format: uuid }
+        decision: { type: string, enum: [PASSED, FAILED] }
+        reason: { type: string, minLength: 1 }
+    WorkOrderBrainHandoffRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - verificationId
+        - threadId
+        - contextPackageId
+        - provider
+        - model
+        - permissions
+        - compositeContextVersion
+        - inputTokens
+        - outputTokens
+        - userMessage
+        - brainMessage
+        - citations
+      properties:
+        verificationId: { type: string, format: uuid }
+        threadId: { type: string, format: uuid }
+        contextPackageId: { type: string, format: uuid }
+        provider: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        permissions: { type: object }
+        compositeContextVersion: { $ref: '../project-state-v1/project-state.schema.json#/$defs/CompositeContextVersionV1' }
+        inputTokens: { type: integer, minimum: 0 }
+        outputTokens: { type: integer, minimum: 0 }
+        userMessage: { type: string, minLength: 1 }
+        brainMessage: { type: string, minLength: 1 }
+        citations: { type: array, items: { type: object } }
+        generatedProposal: { type: [object, 'null'] }
+    PublishPlanProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [approvedNodeKeys]
+      properties:
+        approvedNodeKeys:
+          type: array
+          uniqueItems: true
+          items: { type: string, minLength: 1 }
+    RejectPlanProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    CreateBrainThreadRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+    RecordBrainRunRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - contextPackageId
+        - provider
+        - model
+        - permissions
+        - compositeContextVersion
+        - inputTokens
+        - outputTokens
+        - userMessage
+        - brainMessage
+        - citations
+      properties:
+        contextPackageId: { type: string, format: uuid }
+        provider: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        permissions: { type: object }
+        compositeContextVersion: { $ref: '../project-state-v1/project-state.schema.json#/$defs/CompositeContextVersionV1' }
+        inputTokens: { type: integer, minimum: 0 }
+        outputTokens: { type: integer, minimum: 0 }
+        userMessage: { type: string, minLength: 1 }
+        brainMessage: { type: string, minLength: 1 }
+        citations: { type: array, items: { type: object } }
+        generatedProposal: { type: [object, 'null'] }
+    StateProposalEntryInput:
+      type: object
+      additionalProperties: false
+      required: [title, content, evidenceReferenceIds]
+      properties:
+        title: { type: string, minLength: 1 }
+        content: { type: string, minLength: 1 }
+        rationale: { type: [string, 'null'] }
+        evidenceReferenceIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    InitialStateProposalInput:
+      type: object
+      additionalProperties: false
+      required: [goal, stage, decisions, constraints, risks]
+      properties:
+        goal: { type: string, minLength: 1 }
+        stage: { type: string, minLength: 1 }
+        summary: { type: [string, 'null'] }
+        blocker: { type: [string, 'null'] }
+        decisions: { type: array, items: { $ref: '#/components/schemas/StateProposalEntryInput' } }
+        constraints: { type: array, items: { $ref: '#/components/schemas/StateProposalEntryInput' } }
+        risks: { type: array, items: { $ref: '#/components/schemas/StateProposalEntryInput' } }
+    ConfirmStateProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+    RejectStateProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, reason]
+      properties:
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+    StateStewardCandidate:
+      type: object
+      additionalProperties: false
+      required: [entryType, title, content]
+      properties:
+        entryType: { type: string, enum: [DISCOVERY, DECISION, CONSTRAINT, RISK] }
+        title: { type: string, minLength: 1 }
+        content: { type: string, minLength: 1 }
+        rationale: { type: [string, 'null'] }
+        evidenceReferenceIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    StructuredExecutionReportV1:
+      type: object
+      additionalProperties: false
+      required: [reportId, reportVersion, result]
+      properties:
+        reportId: { type: string, format: uuid }
+        reportVersion: { type: string, const: '1.0' }
+        result: { type: string, enum: [SUCCESS, PARTIAL, BLOCKED, FAILED] }
+        discoveries: { type: array, items: { $ref: '#/components/schemas/StateStewardCandidate' } }
+        decisions: { type: array, items: { $ref: '#/components/schemas/StateStewardCandidate' } }
+        constraints: { type: array, items: { $ref: '#/components/schemas/StateStewardCandidate' } }
+        risks: { type: array, items: { $ref: '#/components/schemas/StateStewardCandidate' } }
+    StateChangeProposalCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - candidateKey
+        - entryType
+        - title
+        - content
+        - disposition
+        - mergedCandidateCount
+        - existingEntryId
+        - evidenceReferenceIds
+      properties:
+        candidateKey: { type: string, minLength: 1 }
+        entryType: { type: string, enum: [DISCOVERY, DECISION, CONSTRAINT, RISK] }
+        title: { type: string, minLength: 1 }
+        content: { type: string, minLength: 1 }
+        rationale: { type: [string, 'null'] }
+        disposition: { type: string, enum: [NEW, STALE, CONFLICT] }
+        mergedCandidateCount: { type: integer, minimum: 1 }
+        existingEntryId: { type: [string, 'null'], format: uuid }
+        evidenceReferenceIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    StateChangeProposalPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - proposalType
+        - roleVersion
+        - promptVersion
+        - reportId
+        - result
+        - candidates
+        - summary
+        - permissions
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        proposalType: { type: string, const: STATE_CHANGE }
+        roleVersion: { type: string, const: 'state-steward:v1' }
+        promptVersion: { type: string, minLength: 1 }
+        reportId: { type: string, format: uuid }
+        result: { type: string, enum: [SUCCESS, PARTIAL, BLOCKED, FAILED] }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/StateChangeProposalCandidate' }
+        summary:
+          type: object
+          additionalProperties: false
+          required: [extracted, newCandidates, staleCandidates, conflictCandidates, mergedCandidates]
+          properties:
+            extracted: { type: integer, minimum: 0 }
+            newCandidates: { type: integer, minimum: 0 }
+            staleCandidates: { type: integer, minimum: 0 }
+            conflictCandidates: { type: integer, minimum: 0 }
+            mergedCandidates: { type: integer, minimum: 0 }
+        permissions:
+          type: object
+          additionalProperties: { type: boolean }
+    ProjectStateProposal:
+      type: object
+      required:
+        - proposalId
+        - projectId
+        - schemaVersion
+        - proposalType
+        - status
+        - baseStateRevision
+        - payload
+        - validationResult
+        - sourceType
+        - sourceId
+        - createdBy
+        - createdAt
+        - decidedBy
+        - decidedAt
+        - appliedRevision
+      properties:
+        proposalId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        schemaVersion: { type: string, const: '1.0' }
+        proposalType: { type: string, enum: [INITIAL_STATE, STATE_CHANGE] }
+        status: { type: string, enum: [PENDING_APPROVAL, APPLIED, STALE, REJECTED, FAILED] }
+        baseStateRevision: { type: integer, format: int64, minimum: 0 }
+        payload:
+          oneOf:
+            - { $ref: '#/components/schemas/InitialStateProposalInput' }
+            - { $ref: '#/components/schemas/StateChangeProposalPayload' }
+        validationResult: { type: object }
+        sourceType: { type: string, minLength: 1 }
+        sourceId: { type: string, minLength: 1 }
+        createdBy: { type: string, minLength: 1 }
+        createdAt: { type: string, format: date-time }
+        decidedBy: { type: [string, 'null'] }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        appliedRevision: { type: [integer, 'null'], format: int64, minimum: 0 }
+    GenerateContextRequest:
+      type: object
+      additionalProperties: false
+      required: [packageType]
+      properties:
+        packageType: { type: string, enum: [BRAIN, PLANNER] }
+    ConfirmWorkspaceBindingRequest:
+      type: object
+      additionalProperties: false
+      required: [proposalId, action, machineId, workspacePath, baseIdentityVersion, clientRequestId]
+      properties:
+        proposalId: { type: string, format: uuid }
+        action: { type: string, enum: [MOVE_WORKSPACE, REBIND_LOCAL_PROJECT] }
+        machineId: { type: string, minLength: 1 }
+        localProjectId: { type: [string, 'null'], minLength: 1 }
+        workspacePath: { type: string, minLength: 1 }
+        baseIdentityVersion: { type: integer, minimum: 1 }
+        clientRequestId: { type: string, minLength: 1, maxLength: 120 }
+    WorkspaceBindingChange:
+      type: object
+      additionalProperties: false
+      required:
+        - changeId
+        - proposalId
+        - action
+        - actor
+        - clientRequestId
+        - baseIdentityVersion
+        - resultingIdentityVersion
+        - binding
+        - createdAt
+      properties:
+        changeId: { type: string, format: uuid }
+        proposalId: { type: string, format: uuid }
+        action: { type: string, enum: [MOVE_WORKSPACE, REBIND_LOCAL_PROJECT] }
+        actor: { type: string, minLength: 1 }
+        clientRequestId: { type: string, minLength: 1 }
+        baseIdentityVersion: { type: integer, minimum: 1 }
+        resultingIdentityVersion: { type: integer, minimum: 2 }
+        binding: { $ref: './project-identity.schema.json#/$defs/WorkspaceBindingV1' }
+        createdAt: { type: string, format: date-time }
+  responses:
+    Unauthorized:
+      description: Missing or invalid Project Control service credential.
+    ServiceCredentialUnavailable:
+      description: Project Control service credential is not configured.

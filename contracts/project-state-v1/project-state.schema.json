@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhishu.local/contracts/project-state-v1/project-state.schema.json",
+  "title": "Zhishu Project State V1",
+  "$defs": {
+    "CompositeContextVersionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stateRevision", "planVersion", "executionWatermark", "contextGeneratedAt", "contextPackageVersion"],
+      "properties": {
+        "stateRevision": { "type": "integer", "minimum": 0 },
+        "planVersion": { "type": ["integer", "null"], "minimum": 1 },
+        "executionWatermark": { "type": "integer", "minimum": 0 },
+        "contextGeneratedAt": { "type": "string", "format": "date-time" },
+        "contextPackageVersion": { "const": "1.0" }
+      }
+    },
+    "StateEntryV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryId", "entryType", "title", "content", "authorityLevel", "sourceType", "sourceId", "createdBy", "status", "createdRevision", "evidenceReferenceIds", "createdAt"],
+      "properties": {
+        "entryId": { "type": "string", "format": "uuid" },
+        "entryType": { "enum": ["GOAL", "STAGE", "FACT", "DECISION", "CONSTRAINT", "DISCOVERY", "RISK", "ASSUMPTION"] },
+        "title": { "type": "string", "minLength": 1 },
+        "content": { "type": "string", "minLength": 1 },
+        "authorityLevel": { "enum": ["SYSTEM_VERIFIED", "USER_CONFIRMED", "AGENT_OBSERVED", "AGENT_INFERRED"] },
+        "sourceType": { "type": "string", "minLength": 1 },
+        "sourceId": { "type": "string", "minLength": 1 },
+        "createdBy": { "type": "string", "minLength": 1 },
+        "rationale": { "type": ["string", "null"] },
+        "observedAt": { "type": ["string", "null"], "format": "date-time" },
+        "confirmedAt": { "type": ["string", "null"], "format": "date-time" },
+        "status": { "enum": ["ACTIVE", "SUPERSEDED", "STALE", "DISMISSED"] },
+        "supersedesId": { "type": ["string", "null"], "format": "uuid" },
+        "createdRevision": { "type": "integer", "minimum": 1 },
+        "evidenceReferenceIds": { "type": "array", "items": { "type": "string", "format": "uuid" }, "uniqueItems": true },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ProjectStateSnapshotV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "projectId", "stateRevision", "goal", "stage", "summary", "blocker", "entries", "updatedAt"],
+      "properties": {
+        "schemaVersion": { "const": "1.0" },
+        "projectId": { "type": "string", "format": "uuid" },
+        "stateRevision": { "type": "integer", "minimum": 0 },
+        "goal": { "anyOf": [{ "$ref": "#/$defs/StateEntryV1" }, { "type": "null" }] },
+        "stage": { "anyOf": [{ "$ref": "#/$defs/StateEntryV1" }, { "type": "null" }] },
+        "summary": { "type": ["string", "null"] },
+        "blocker": { "type": ["string", "null"] },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/StateEntryV1" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ContextPackageV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "packageType", "version", "project", "state", "decisions", "constraints", "risks", "recentChanges", "derivedSystemFacts", "truncation"],
+      "properties": {
+        "packageId": { "type": "string", "format": "uuid" },
+        "packageType": { "enum": ["BRAIN", "PLANNER"] },
+        "version": { "$ref": "#/$defs/CompositeContextVersionV1" },
+        "project": { "type": "object" },
+        "state": { "$ref": "#/$defs/ProjectStateSnapshotV1" },
+        "activePlan": {
+          "type": ["object", "null"],
+          "properties": {
+            "planId": { "type": "string", "format": "uuid" },
+            "versionNumber": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "decisions": { "type": "array", "items": { "$ref": "#/$defs/StateEntryV1" } },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/StateEntryV1" } },
+        "risks": { "type": "array", "items": { "$ref": "#/$defs/StateEntryV1" } },
+        "recentChanges": { "type": "array", "items": { "type": "object" } },
+        "derivedSystemFacts": { "type": "array", "items": { "type": "object" } },
+        "truncation": { "type": "object" }
+      }
+    }
+  }
+}

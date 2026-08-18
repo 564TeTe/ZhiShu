@@ -1,0 +1,51 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: zhishu-control-plane
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/zhishu}
+    username: ${SPRING_DATASOURCE_USERNAME:zhishu}
+    password: ${SPRING_DATASOURCE_PASSWORD:zhishu}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+zhishu:
+  web:
+    allowed-origins: ${ZHISHU_UI_ALLOWED_ORIGINS:http://127.0.0.1:3001,http://localhost:3001,http://127.0.0.1:5173,http://localhost:5173}
+  runtime:
+    base-url: ${ZHISHU_RUNTIME_BASE_URL:http://127.0.0.1:3001}
+    token: ${ZS_RUNTIME_TOKEN:}
+    connect-timeout: 2s
+    read-timeout: 10s
+    lease:
+      duration: ${ZHISHU_RUNTIME_LEASE_DURATION:30s}
+      unknown-grace: ${ZHISHU_RUNTIME_UNKNOWN_GRACE:60s}
+      scan-delay: ${ZHISHU_RUNTIME_LEASE_SCAN_DELAY:5s}
+  project-control:
+    token: ${ZS_PROJECT_CONTROL_TOKEN:}
+  workspace:
+    provisioning:
+      root: ${ZHISHU_WORKSPACE_PROVISIONING_ROOT:${java.io.tmpdir}/zhishu-workspaces}
+      operation-timeout: ${ZHISHU_WORKSPACE_PROVISIONING_TIMEOUT:2m}
+      lease-duration: ${ZHISHU_WORKSPACE_LEASE_DURATION:30m}
+      scan-delay: ${ZHISHU_WORKSPACE_PROVISIONING_SCAN_DELAY:15s}
+      git-executable: ${ZHISHU_GIT_EXECUTABLE:git}
+  integration:
+    execution:
+      enabled: ${ZHISHU_INTEGRATION_EXECUTION_ENABLED:true}
+      command-timeout: ${ZHISHU_INTEGRATION_COMMAND_TIMEOUT:10m}
+      output-limit: ${ZHISHU_INTEGRATION_OUTPUT_LIMIT:1000000}
+      # REQUIRED fails closed until the deployment supplies a Job Object/cgroup
+      # sandbox provider. BEST_EFFORT is reserved for explicitly isolated tests.
+      sandbox-mode: ${ZHISHU_INTEGRATION_SANDBOX_MODE:REQUIRED}
+      recovery-enabled: ${ZHISHU_INTEGRATION_RECOVERY_ENABLED:true}
+      recovery-delay: ${ZHISHU_INTEGRATION_RECOVERY_DELAY:30s}

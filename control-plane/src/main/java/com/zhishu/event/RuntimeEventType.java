@@ -1,0 +1,15 @@
+package com.zhishu.event;
+
+public enum RuntimeEventType {
+    RUN_STARTED,
+    RUNTIME_HEARTBEAT,
+    AGENT_STATUS,
+    COMMAND_COMPLETED,
+    ARTIFACT_PUBLISHED,
+    APPROVAL_REQUIRED,
+    APPROVAL_RESOLVED,
+    ERROR,
+    RUN_COMPLETED,
+    RUN_FAILED,
+    RUN_ABORTED
+}

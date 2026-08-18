@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhishu.local/contracts/project-control-v1/project-identity.schema.json",
+  "title": "Zhishu Project Identity Resolution V1",
+  "$ref": "#/$defs/ProjectIdentityResolutionV1",
+  "$defs": {
+    "ProjectIdentityV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "displayName", "repositoryIdentity", "status", "identityVersion"],
+      "properties": {
+        "projectId": { "type": "string", "format": "uuid" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "repositoryIdentity": { "type": ["string", "null"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+        "identityVersion": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "WorkspaceBindingV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "projectId",
+        "machineId",
+        "localProjectId",
+        "workspacePath",
+        "normalizedWorkspacePath",
+        "repositoryUrl",
+        "remoteFingerprint",
+        "branch",
+        "isPrimary",
+        "status",
+        "lastSeenAt"
+      ],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "projectId": { "type": "string", "format": "uuid" },
+        "machineId": { "type": "string", "minLength": 1 },
+        "localProjectId": { "type": ["string", "null"], "minLength": 1 },
+        "workspacePath": { "type": "string", "minLength": 1 },
+        "normalizedWorkspacePath": { "type": "string", "minLength": 1 },
+        "repositoryUrl": { "type": ["string", "null"] },
+        "remoteFingerprint": { "type": ["string", "null"] },
+        "branch": { "type": ["string", "null"] },
+        "isPrimary": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "MOVED", "DETACHED", "STALE"] },
+        "lastSeenAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ProjectIdentityCandidateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "matchedBy", "confidence"],
+      "properties": {
+        "project": { "$ref": "#/$defs/ProjectIdentityV1" },
+        "matchedBy": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["LOCAL_PROJECT_ID", "WORKSPACE_PATH", "REMOTE_FINGERPRINT", "LEGACY_RUNTIME_REF"]
+          }
+        },
+        "confidence": { "type": "string", "enum": ["EXACT", "STRONG", "WEAK"] }
+      }
+    },
+    "WorkspaceBindingProposalV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalId",
+        "action",
+        "machineId",
+        "localProjectId",
+        "workspacePath",
+        "targetProjectId",
+        "candidateProjectIds",
+        "reasons",
+        "baseIdentityVersion",
+        "status"
+      ],
+      "properties": {
+        "proposalId": { "type": "string", "format": "uuid" },
+        "action": {
+          "type": "string",
+          "enum": ["CREATE_PROJECT", "CREATE_BINDING", "MOVE_WORKSPACE", "REBIND_LOCAL_PROJECT", "MERGE_REVIEW"]
+        },
+        "machineId": { "type": "string", "minLength": 1 },
+        "localProjectId": { "type": ["string", "null"], "minLength": 1 },
+        "workspacePath": { "type": "string", "minLength": 1 },
+        "targetProjectId": { "type": ["string", "null"], "format": "uuid" },
+        "candidateProjectIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "uuid" }
+        },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "baseIdentityVersion": { "type": ["integer", "null"], "minimum": 1 },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "APPLIED", "STALE"] }
+      }
+    },
+    "ProjectExecutionRegistrationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectId", "profileId", "projectRef", "profileName"],
+      "properties": {
+        "projectId": { "type": "string", "format": "uuid" },
+        "profileId": { "type": "string", "format": "uuid" },
+        "projectRef": { "type": "string", "minLength": 1 },
+        "profileName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ProjectIdentityResolutionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "resolution", "project", "binding", "candidates", "ambiguityReasons", "proposal", "executionRegistration"],
+      "properties": {
+        "schemaVersion": { "const": "1.0" },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "MATCHED_BY_LOCAL_PROJECT_ID",
+            "MATCHED_BY_WORKSPACE_PATH",
+            "MATCHED_BY_REMOTE_FINGERPRINT",
+            "PROPOSAL_REQUIRED",
+            "AMBIGUOUS",
+            "NOT_FOUND"
+          ]
+        },
+        "project": {
+          "anyOf": [
+            { "$ref": "#/$defs/ProjectIdentityV1" },
+            { "type": "null" }
+          ]
+        },
+        "binding": {
+          "anyOf": [
+            { "$ref": "#/$defs/WorkspaceBindingV1" },
+            { "type": "null" }
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProjectIdentityCandidateV1" }
+        },
+        "ambiguityReasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "proposal": {
+          "anyOf": [
+            { "$ref": "#/$defs/WorkspaceBindingProposalV1" },
+            { "type": "null" }
+          ]
+        },
+        "executionRegistration": {
+          "description": "Compatibility projection used by the existing execution APIs during the workspace-binding rollout.",
+          "anyOf": [
+            { "$ref": "#/$defs/ProjectExecutionRegistrationV1" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

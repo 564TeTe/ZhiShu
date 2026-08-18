@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zhishu.local/contracts/work-order-v1/execution-report.schema.json",
+  "title": "ExecutionReportV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "reportId", "taskId", "attemptId", "schemaVersion", "attemptStatus",
+    "agentClaims", "systemEvidence", "generatedAt"
+  ],
+  "properties": {
+    "reportId": { "type": "string", "format": "uuid" },
+    "taskId": { "type": "string", "format": "uuid" },
+    "attemptId": { "type": "string", "format": "uuid" },
+    "schemaVersion": { "const": "1.0" },
+    "attemptStatus": { "enum": ["SUCCEEDED", "FAILED", "LOST", "ABORTED"] },
+    "agentClaims": {
+      "type": "array",
+      "description": "Non-authoritative agent-authored summaries and error claims.",
+      "items": { "$ref": "#/$defs/EvidenceSnapshot" }
+    },
+    "systemEvidence": {
+      "type": "array",
+      "description": "Runtime-observed, hashed tool outputs; separate from Agent Claims.",
+      "items": { "$ref": "#/$defs/EvidenceSnapshot" }
+    },
+    "verificationId": { "type": ["string", "null"], "format": "uuid" },
+    "decision": { "type": ["string", "null"], "enum": ["PASSED", "FAILED", null] },
+    "stateEntryId": { "type": ["string", "null"], "format": "uuid" },
+    "brainThreadId": { "type": ["string", "null"], "format": "uuid" },
+    "generatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "EvidenceSnapshot": {
+      "type": "object",
+      "required": ["artifactId", "artifactType", "producer", "metadata", "observedAt"],
+      "properties": {
+        "artifactId": { "type": "string", "format": "uuid" },
+        "artifactType": { "type": "string" },
+        "producer": { "type": "string" },
+        "content": { "type": ["string", "null"] },
+        "hash": { "type": ["string", "null"] },
+        "metadata": { "type": "object" },
+        "observedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

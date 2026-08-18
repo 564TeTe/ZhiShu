@@ -1,0 +1,17 @@
+{
+  "roleVersion": "project-planner:v1",
+  "promptVersion": "project-planner-prompt:v1",
+  "outputSchemaVersion": "PlanProposalV1",
+  "contextPackageType": "PLANNER",
+  "contextPackageVersion": "1.0",
+  "permissions": {
+    "readPrebuiltContext": true,
+    "generatePlanProposal": true,
+    "shell": false,
+    "filesystemWrite": false,
+    "taskCreate": false,
+    "runtimeDispatch": false,
+    "planPublish": false
+  },
+  "capabilities": ["READ_FILE", "WRITE_FILE", "TEST", "SHELL", "GIT"]
+}
