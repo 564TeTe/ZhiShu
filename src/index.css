@@ -44,6 +44,12 @@
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
+/* A flat, low-opacity veil keeps text readable over bright wallpaper details
+   without blurring the image or making message text glow. */
+.app-wallpaper-active .chat-messages-pane {
+  background-color: hsl(var(--background) / 0.16);
+}
+
 @-webkit-keyframes spin {
   0% {
     -webkit-transform: rotate(0deg);

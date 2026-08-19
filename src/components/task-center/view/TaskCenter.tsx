@@ -33,11 +33,11 @@ type TaskCenterProps = {
 type TaskCenterSection = 'cockpit' | 'overview' | 'tasks' | 'plan' | 'knowledge' | 'advanced';
 
 const cockpitSections = [
-  { id: 'cockpit', label: '项目驾驶舱', icon: LayoutDashboard },
-  { id: 'plan', label: '工作流', icon: ListChecks },
-  { id: 'knowledge', label: '项目知识', icon: BookOpen },
-  { id: 'tasks', label: '任务与验收', icon: ListTodo },
-  { id: 'advanced', label: '高级集成', icon: GitBranch, sensitive: true },
+  { id: 'cockpit', label: '总览', icon: LayoutDashboard },
+  { id: 'plan', label: '新建与执行', icon: ListChecks },
+  { id: 'tasks', label: '结果与验收', icon: ListTodo },
+  { id: 'knowledge', label: '项目资料', icon: BookOpen },
+  { id: 'advanced', label: '高级功能', icon: GitBranch, sensitive: true },
 ] satisfies Array<{
   id: TaskCenterSection;
   label: string;
@@ -150,7 +150,7 @@ function RegisteredTaskCenter({
   return (
     <div className="task-center-surface h-full overflow-hidden bg-muted/10">
       <ScrollArea className="h-full">
-        <div className="mx-auto w-full max-w-[1600px] p-3 lg:p-5">
+        <div className="mx-auto w-full max-w-[1480px] p-3 sm:p-4 lg:p-5">
           <TaskCenterSectionNav activeSection={activeSection} onChange={setActiveSection} />
 
           <div className="mt-3">

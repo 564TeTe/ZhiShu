@@ -69,7 +69,7 @@ export function TaskExecutionDetail({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="truncate text-base">{detail.task.title}</CardTitle>
-            <Badge variant="outline">执行详情</Badge>
+            <Badge variant="outline">任务结果</Badge>
             {detail.availability === 'partial' && <Badge variant="secondary">部分数据可用</Badge>}
             {detail.task.archivedAt && <Badge variant="secondary">已归档</Badge>}
           </div>
@@ -139,11 +139,11 @@ export function TaskExecutionDetail({
 
         <div className="grid gap-4 xl:grid-cols-2">
           <section>
-            <h3 className="mb-2 text-sm font-semibold">执行尝试记录</h3>
+            <h3 className="mb-2 text-sm font-semibold">执行过程</h3>
             <AttemptHistory attempts={detail.attempts} />
           </section>
           <section>
-            <h3 className="mb-2 text-sm font-semibold">审批、证据与跟进</h3>
+            <h3 className="mb-2 text-sm font-semibold">相关记录</h3>
             <EvidenceList
               approvals={detail.approvals}
               artifacts={detail.artifacts}

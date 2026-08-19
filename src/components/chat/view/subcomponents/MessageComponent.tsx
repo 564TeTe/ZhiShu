@@ -88,7 +88,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     >
       {message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
-        <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
+        <div className="flex w-full items-end sm:w-auto sm:max-w-[85%] md:max-w-md lg:max-w-lg xl:max-w-xl">
           <div className="flex min-w-0 flex-1 flex-col items-end gap-2 sm:flex-initial">
             {message.images && message.images.length > 0 && (
               <ChatMessageImages
@@ -104,16 +104,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <VisionStatusCard message={message} />
             )}
             {userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length) ? (
-              <div className="group max-w-full rounded-2xl rounded-br-md bg-gradient-to-br from-[#C66B3D] to-[#A04A2A] px-3 py-2 text-white shadow-sm sm:px-4">
-                <div dir="auto" className="break-words font-serif text-sm">
+              <div className="group max-w-full rounded-2xl rounded-br-md border border-foreground/[0.10] bg-foreground/[0.055] px-4 py-3 text-foreground shadow-[0_10px_28px_-20px_hsl(var(--foreground)/0.45)] sm:px-5 sm:py-3.5">
+                <div dir="auto" className="break-words text-[15px] leading-[1.75] text-foreground/95">
                   <Markdown
                     breaks
-                    className="prose prose-sm prose-invert max-w-none font-serif [&_a]:text-[#FCEDE3] [&_a]:underline"
+                    className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/95 prose-strong:text-foreground prose-li:text-foreground/95 [&_a]:text-primary [&_a]:underline"
                   >
                     {message.content}
                   </Markdown>
                 </div>
-                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-[#FCEDE3]">
+                <div className="mt-2 flex items-center justify-end gap-2 text-[10px] tracking-[0.04em] text-muted-foreground/80">
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
@@ -127,41 +127,35 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </div>
             )}
           </div>
-          {!isGrouped && (
-            <img
-              src="/user-chat-avatar.png?v=20260813"
-              alt={t('messageTypes.user', { defaultValue: 'User' })}
-              className="hidden h-8 w-8 flex-shrink-0 rounded-full border border-border/60 object-cover shadow-sm sm:block"
-            />
-          )}
         </div>
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */
         <div className="w-full">
           <div className="flex items-center gap-2 py-0.5">
             <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{message.content}</span>
+            <span className="text-xs text-foreground/80">{message.content}</span>
           </div>
         </div>
       ) : (
-        /* Claude/Error/Tool messages on the left */
+        /* Claude/Error/Tool messages on the left — continuous reading flow; only tool output keeps its own boundary. */
         <div className="w-full">
+          <div className="relative px-1 py-2 text-foreground sm:px-2 sm:py-2.5">
           {!isGrouped && (
-            <div className="mb-2 flex items-center space-x-3">
+            <div className="mb-2 flex items-center gap-2.5">
               {message.type === 'error' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#9B3F2E] to-[#7A2E22] text-sm font-semibold text-white shadow-sm ring-1 ring-[#7A2E22]/20">
+                <div className="bg-destructive/12 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-destructive ring-1 ring-destructive/20">
                   !
                 </div>
               ) : message.type === 'tool' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#A04A2A] to-[#7A381F] text-white shadow-sm ring-1 ring-[#7A381F]/20 dark:from-[#A04A2A] dark:to-[#5C2C17]">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
                   <Wrench className="h-4 w-4" />
                 </div>
               ) : (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
+                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/35 p-1 text-foreground">
                   <SessionProviderLogo provider={provider} className="h-full w-full" />
                 </div>
               )}
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
+              <div className="text-xs font-semibold tracking-[0.01em] text-foreground/80">
                 {message.type === 'error'
                   ? t('messageTypes.error')
                   : message.type === 'tool'
@@ -183,7 +177,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <>
                 <div className="flex flex-col">
                   <div className="flex flex-col">
-                    <Markdown className="prose prose-sm max-w-none font-serif dark:prose-invert">
+                    <Markdown className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/95 prose-strong:text-foreground prose-li:text-foreground/95">
                       {String(message.displayText || '')}
                     </Markdown>
                   </div>
@@ -317,9 +311,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern) */
               <Reasoning defaultOpen={false}>
-                <ReasoningTrigger />
+                <ReasoningTrigger className="text-xs text-foreground/80 hover:text-foreground" />
                 <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                  <Markdown className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/95 prose-strong:text-foreground prose-li:text-foreground/95">
                     {message.content}
                   </Markdown>
                   <div className="mt-3 flex items-center text-[11px]">
@@ -328,11 +322,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 </ReasoningContent>
               </Reasoning>
             ) : (
-              <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
+              <div dir="auto" className="text-[15px] leading-[1.8] text-foreground/95">
                 {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
-                    <ReasoningTrigger />
+                    <ReasoningTrigger className="text-xs text-foreground/80 hover:text-foreground" />
                     <ReasoningContent>
                       <div className="whitespace-pre-wrap">
                         {message.reasoning}
@@ -376,7 +370,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                   // Normal rendering for non-JSON content
                   return message.type === 'assistant' ? (
-                    <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                    <Markdown className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/95 prose-strong:text-foreground prose-li:text-foreground/95">
                       {content}
                     </Markdown>
                   ) : (
@@ -389,7 +383,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+              <div className="mt-2 flex w-full items-center gap-2 text-[10px] text-muted-foreground/80">
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}
@@ -399,6 +393,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 {!isGrouped && <span>{formattedTime}</span>}
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
@@ -444,7 +439,7 @@ function VisionStatusCard({ message }: { message: ChatMessage }) {
           <span className="ml-auto text-[10px]">{expanded ? '收起 ▲' : '展开 ▼'}</span>
         </button>
         {expanded && (
-          <div className="border-t border-border/30 px-3 py-2 space-y-1.5 text-muted-foreground">
+          <div className="space-y-1.5 border-t border-border/30 px-3 py-2 text-muted-foreground">
             <p className="text-foreground">{String(v.description ?? '')}</p>
             {Array.isArray(v.errorText) && (v.errorText as unknown[]).length > 0 && (
               <div>

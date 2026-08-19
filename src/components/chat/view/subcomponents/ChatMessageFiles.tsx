@@ -57,18 +57,18 @@ function ChatMessageFile({ file }: { file: ChatAttachment }) {
       type="button"
       onClick={() => void download()}
       disabled={!file.path || isDownloading}
-      className="group/file flex w-64 max-w-full items-center gap-3 rounded-xl border border-border/50 bg-card px-3 py-2.5 text-left shadow-sm transition-colors hover:bg-accent/60 disabled:cursor-default disabled:hover:bg-card"
+      className="group/file border-[#E8B48A]/12 from-[#262019]/38 via-[#1C1711]/34 to-[#140F0A]/42 disabled:hover:bg-[#1C1711]/34 flex w-64 max-w-full items-center gap-3 rounded-[14px] border bg-gradient-to-b px-3 py-2.5 text-left shadow-[0_12px_30px_-14px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-lg transition-colors hover:bg-white/[0.07] disabled:cursor-default"
       aria-label={`Download ${name}`}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <div className="bg-[#E8B48A]/12 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[#E8B48A]">
         <FileTypeIcon className="h-5 w-5" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground" title={name}>{name}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{size || 'File attachment'}</p>
+        <p className="truncate text-sm font-medium text-[#F6F0E9]" title={name}>{name}</p>
+        <p className="mt-0.5 text-xs text-white/35">{size || 'File attachment'}</p>
       </div>
       <DownloadIcon
-        className={`h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover/file:text-foreground ${
+        className={`h-4 w-4 shrink-0 text-white/30 transition-colors group-hover/file:text-white/70 ${
           isDownloading ? 'animate-pulse' : ''
         }`}
         aria-hidden

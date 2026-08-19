@@ -59,15 +59,15 @@ function VerificationGate({
         <p className="text-muted-foreground">
           {report.verifiedBy} · {report.verifiedAt ? new Date(report.verifiedAt).toLocaleString() : '—'}
         </p>
-        {report.stateEntryId && <p className="font-mono text-[10px]">状态记录 {report.stateEntryId}</p>}
-        {report.brainThreadId && <p className="font-mono text-[10px]">大脑对话 {report.brainThreadId}</p>}
+        {report.stateEntryId && <p className="font-mono text-[10px]">项目资料记录 {report.stateEntryId}</p>}
+        {report.brainThreadId && <p className="font-mono text-[10px]">关联对话 {report.brainThreadId}</p>}
         {report.brainSummary && (
           <div className="rounded border border-primary/20 bg-primary/5 p-2">
             <p className="mb-1 font-medium">项目大脑的下一步摘要</p>
             <p className="whitespace-pre-wrap">{report.brainSummary}</p>
             {report.brainContextPackageId && (
               <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                上下文 {report.brainContextPackageId}
+                执行资料 {report.brainContextPackageId}
               </p>
             )}
           </div>
@@ -128,7 +128,7 @@ export function WorkOrderHistory({
   onExtractStateCandidates,
 }: WorkOrderHistoryProps) {
   if (workOrders.length === 0) {
-    return <p className="mt-2 text-xs text-muted-foreground">尚无工作单记录。</p>;
+    return <p className="mt-2 text-xs text-muted-foreground">尚无执行记录。</p>;
   }
   return (
     <div className="mt-3 space-y-2">
@@ -137,11 +137,11 @@ export function WorkOrderHistory({
           <summary className="cursor-pointer list-none">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-xs font-medium">
-                工作单 <span className="font-mono">{workOrder.workOrderId.slice(0, 8)}</span>
+                执行记录 <span className="font-mono">{workOrder.workOrderId.slice(0, 8)}</span>
                 <Badge variant="secondary">{planNodeStateLabel(workOrder.status)}</Badge>
               </span>
               <span className="text-[10px] text-muted-foreground">
-                任务 {workOrder.taskId.slice(0, 8)} · 计划版本 {workOrder.versionNumber}
+                任务 {workOrder.taskId.slice(0, 8)} · 方案版本 {workOrder.versionNumber}
               </span>
             </div>
           </summary>
@@ -189,7 +189,7 @@ export function WorkOrderHistory({
               </div>
             ))}
             <p className="text-[10px] text-muted-foreground">
-              追踪记录：{workOrder.events.length} 个工作单事件 · 上下文版本 {String(workOrder.contextVersion.workOrderContextVersion ?? '1.0')}
+              追踪记录：{workOrder.events.length} 个执行事件 · 执行资料版本 {String(workOrder.contextVersion.workOrderContextVersion ?? '1.0')}
             </p>
           </div>
         </details>

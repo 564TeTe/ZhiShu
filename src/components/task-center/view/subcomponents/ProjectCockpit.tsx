@@ -3,9 +3,9 @@ import {
   ArrowRight,
   CheckCircle2,
   CircleDot,
+  FileClock,
   RefreshCw,
   ShieldAlert,
-  Sparkles,
 } from 'lucide-react';
 
 import { Button } from '../../../../shared/view/ui';
@@ -41,177 +41,205 @@ export function ProjectCockpit({
   onNavigate,
 }: ProjectCockpitProps) {
   const { summary, dependencies, project, tasks, approvals, recentArtifacts, warnings } = dashboard;
-  const needsAttention = summary.waitingApproval + summary.awaitingAcceptance + summary.failedTasks + summary.lostTasks;
+  const failedCount = summary.failedTasks + summary.lostTasks;
+  const waitingApprovalCount = Math.max(summary.waitingApproval, approvals.length);
+  const needsAttention = waitingApprovalCount + summary.awaitingAcceptance + failedCount;
   const completed = summary.succeededTasks;
   const completion = summary.totalTasks > 0
     ? Math.min(100, Math.round((completed / summary.totalTasks) * 100))
     : 0;
-  const phase = approvals.length > 0
-    ? '需要审批'
-    : summary.activeTasks > 0
-      ? '正在执行'
-      : summary.awaitingAcceptance > 0
-        ? '等待验收'
-        : summary.totalTasks === 0
-          ? '准备开始'
-          : '可以继续规划';
   const systemHealthy = dependencies.controlPlane.status === 'up'
     && dependencies.runtimeDelivery.status === 'up';
 
+  const nextAction = waitingApprovalCount > 0
+    ? {
+        eyebrow: '等待你的决定',
+        title: `${waitingApprovalCount} 项操作需要确认`,
+        detail: '检查 Agent 准备执行的操作，允许或拒绝后任务才会继续。',
+        label: '去处理审批',
+        section: 'tasks' as const,
+      }
+    : summary.awaitingAcceptance > 0
+      ? {
+          eyebrow: '等待你的验收',
+          title: `${summary.awaitingAcceptance} 个任务已经完成执行`,
+          detail: '查看改动、测试结果和执行说明，然后确认通过或要求继续修改。',
+          label: '查看并验收',
+          section: 'tasks' as const,
+        }
+      : summary.activeTasks > 0
+        ? {
+            eyebrow: 'Agent 正在工作',
+            title: `${summary.activeTasks} 个任务正在执行`,
+            detail: '可以查看实时状态和过程记录，不需要重复创建任务。',
+            label: '查看执行进度',
+            section: 'tasks' as const,
+          }
+        : {
+            eyebrow: summary.totalTasks === 0 ? '从这里开始' : '可以继续推进',
+            title: summary.totalTasks === 0 ? '告诉知枢你想完成什么' : '创建下一个任务',
+            detail: '描述目标后，知枢会先整理执行步骤；只有你确认后才会开始执行。',
+            label: summary.totalTasks === 0 ? '新建第一个任务' : '新建任务',
+            section: 'plan' as const,
+          };
+
+  const currentStep = summary.totalTasks === 0
+    ? 0
+    : waitingApprovalCount > 0
+      ? 1
+      : summary.activeTasks > 0
+        ? 2
+        : summary.awaitingAcceptance > 0 || failedCount > 0
+          ? 3
+          : completed >= summary.totalTasks
+            ? 4
+            : 1;
+
   return (
-    <div className="space-y-5">
-      <section className="border border-border/70 bg-background px-5 py-6 shadow-sm sm:px-7 sm:py-7">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+    <div className="space-y-4">
+      <section className="border border-border/60 bg-card shadow-sm">
+        <div className="flex flex-col gap-6 px-5 py-6 sm:px-7 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-primary">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              项目驾驶舱
-              {isStale && <span className="text-amber-600">数据需要刷新</span>}
-            </div>
-            <h1 className="mt-2 truncate text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {project.displayName}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              从项目状态、当前阶段到执行证据，快速了解现在发生了什么，以及下一步最值得做什么。
-            </p>
+            <div className="text-xs font-medium text-muted-foreground">任务中心</div>
+            <h1 className="mt-1 truncate text-xl font-semibold text-foreground sm:text-2xl">{project.displayName}</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium ${systemHealthy
-              ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
-              : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300'}`}>
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium ${systemHealthy
+              ? 'border-emerald-500/25 text-emerald-600'
+              : 'border-amber-500/30 text-amber-600'}`}>
               <CircleDot className="h-3.5 w-3.5" aria-hidden="true" />
-              {phase}
+              {systemHealthy ? '运行正常' : '部分服务异常'}
             </span>
-            <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing}>
-              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-              刷新
+            <Button variant="ghost" size="icon" onClick={onRefresh} disabled={isRefreshing} title="刷新" aria-label="刷新任务中心">
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
             </Button>
           </div>
         </div>
 
-        <div className="mt-7 grid gap-3 border-t border-border/60 pt-5 sm:grid-cols-4">
-          <CockpitMetric label="全部任务" value={summary.totalTasks} />
-          <CockpitMetric label="进行中" value={summary.activeTasks} tone="primary" />
-          <CockpitMetric label="待处理" value={needsAttention} tone={needsAttention > 0 ? 'warning' : 'default'} />
-          <CockpitMetric label="已完成" value={completed} tone="success" />
+        <div className="border-t border-border/60 px-5 py-7 sm:px-7">
+          <p className="text-xs font-semibold text-primary">{nextAction.eyebrow}</p>
+          <div className="mt-2 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <h2 className="text-xl font-semibold text-foreground sm:text-2xl">{nextAction.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{nextAction.detail}</p>
+            </div>
+            <Button className="shrink-0" onClick={() => onNavigate(nextAction.section)}>
+              {nextAction.label}<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          {(isStale || requestError) && (
+            <p className="mt-3 text-xs text-amber-600">{requestError ?? '数据可能不是最新状态，请刷新后再操作。'}</p>
+          )}
         </div>
       </section>
 
-      <section className="border border-border/70 bg-background px-5 py-5 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <section className="border border-border/60 bg-card px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">研发进程</p>
-            <h2 className="mt-1 text-base font-semibold">项目正在从哪里走向哪里</h2>
+            <h2 className="text-sm font-semibold">一个任务的完整流程</h2>
+            <p className="mt-1 text-xs text-muted-foreground">按顺序完成，不需要理解内部系统名词。</p>
           </div>
-          <span className="text-sm font-semibold tabular-nums text-primary">{completion}% 完成</span>
+          <span className="text-sm font-semibold tabular-nums text-primary">{completion}%</span>
         </div>
         <div className="mt-5 grid gap-2 sm:grid-cols-4">
-          <CockpitPhase step="01" label="理解项目" detail="状态与上下文" done={summary.totalTasks > 0} />
-          <CockpitPhase step="02" label="制定计划" detail="目标与工作单" done={summary.totalTasks > 0} active={phase === '可以继续规划'} />
-          <CockpitPhase step="03" label="Agent 执行" detail={`${summary.activeTasks} 个进行中`} done={summary.activeTasks > 0 || completed > 0} active={summary.activeTasks > 0} />
-          <CockpitPhase step="04" label="人工验收" detail={`${summary.awaitingAcceptance} 个待验收`} done={completed > 0} active={summary.awaitingAcceptance > 0} />
-        </div>
-        <div className="mt-4 h-1.5 overflow-hidden bg-muted">
-          <div className="h-full bg-primary transition-all" style={{ width: `${completion}%` }} />
+          <FlowStep number="1" label="描述目标" detail="说清楚要完成什么" state={stepState(0, currentStep)} onClick={() => onNavigate('plan')} />
+          <FlowStep number="2" label="确认步骤" detail="检查知枢整理的方案" state={stepState(1, currentStep)} onClick={() => onNavigate('plan')} />
+          <FlowStep number="3" label="Agent 执行" detail={`${summary.activeTasks} 个正在执行`} state={stepState(2, currentStep)} onClick={() => onNavigate('tasks')} />
+          <FlowStep number="4" label="验收结果" detail={`${summary.awaitingAcceptance} 个等待验收`} state={stepState(3, currentStep)} onClick={() => onNavigate('tasks')} />
         </div>
       </section>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
-        <section className="border border-border/70 bg-background p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">下一步</p>
-              <h2 className="mt-1 text-base font-semibold">需要你关注的事项</h2>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
+        <section className="border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">需要你处理</h2>
+            {needsAttention > 0 && <span className="text-xs font-medium text-amber-600">{needsAttention} 项</span>}
+          </div>
+          {needsAttention === 0 ? (
+            <div className="mt-4 flex items-center gap-3 border-t border-border/60 py-5">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">当前没有需要你处理的事项</div>
+                <div className="mt-1 text-xs text-muted-foreground">可以新建任务，或等待正在执行的任务完成。</div>
+              </div>
             </div>
-            {needsAttention > 0 && <ShieldAlert className="h-5 w-5 text-amber-500" aria-hidden="true" />}
-          </div>
-          <div className="mt-4 divide-y border-y border-border/60">
-            <CockpitAction
-              icon={approvals.length > 0 ? ShieldAlert : CheckCircle2}
-              title={approvals.length > 0 ? `${approvals.length} 项操作等待审批` : '当前没有待审批操作'}
-              detail={approvals.length > 0 ? '检查工具调用和权限范围，确认后继续执行。' : '审批队列保持清空，可以继续推进项目。'}
-              tone={approvals.length > 0 ? 'warning' : 'default'}
-              onClick={() => onNavigate('tasks')}
-            />
-            <CockpitAction
-              icon={summary.awaitingAcceptance > 0 ? ShieldAlert : CheckCircle2}
-              title={summary.awaitingAcceptance > 0 ? `${summary.awaitingAcceptance} 个任务等待验收` : '暂无待验收任务'}
-              detail="查看执行报告、测试证据和 Agent 声明，再决定通过或要求跟进。"
-              tone={summary.awaitingAcceptance > 0 ? 'warning' : 'default'}
-              onClick={() => onNavigate('tasks')}
-            />
-            <CockpitAction
-              icon={summary.failedTasks + summary.lostTasks > 0 ? AlertTriangle : CheckCircle2}
-              title={summary.failedTasks + summary.lostTasks > 0 ? `${summary.failedTasks + summary.lostTasks} 个任务需要复盘` : '没有失败或失联任务'}
-              detail="失败、失联和中止任务会保留完整尝试历史，可从任务与验收继续处理。"
-              tone={summary.failedTasks + summary.lostTasks > 0 ? 'danger' : 'default'}
-              onClick={() => onNavigate('tasks')}
-            />
-          </div>
-        </section>
-
-        <section className="border border-border/70 bg-background p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">系统状态</p>
-              <h2 className="mt-1 text-base font-semibold">项目运行环境</h2>
-            </div>
-            <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => onNavigate('knowledge')}>
-              查看项目知识
-            </button>
-          </div>
-          <div className="mt-4 space-y-3">
-            <StatusRow label="控制面" value={dependencies.controlPlane.status === 'up' ? '正常' : dependencies.controlPlane.status === 'degraded' ? '降级' : '不可用'} good={dependencies.controlPlane.status === 'up'} />
-            <StatusRow label="运行事件" value={dependencies.runtimeDelivery.status === 'up' ? '正常' : dependencies.runtimeDelivery.status === 'misconfigured' ? '未配置' : '有延迟'} good={dependencies.runtimeDelivery.status === 'up'} />
-            <StatusRow label="实时活动" value={subscription.status === 'LIVE' ? '实时连接' : subscription.status === 'FALLBACK' ? '轮询模式' : '正在连接'} good={subscription.status === 'LIVE'} />
-          </div>
-          {(metricsError || requestError || warnings.length > 0) && (
-            <div className="mt-4 border-t border-border/60 pt-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
-              {metricsError ?? requestError ?? warnings[0]?.message}
+          ) : (
+            <div className="mt-3 divide-y border-y border-border/60">
+              {waitingApprovalCount > 0 && (
+                <AttentionRow icon={ShieldAlert} title={`${waitingApprovalCount} 项操作等待确认`} onClick={() => onNavigate('tasks')} />
+              )}
+              {summary.awaitingAcceptance > 0 && (
+                <AttentionRow icon={CheckCircle2} title={`${summary.awaitingAcceptance} 个结果等待验收`} onClick={() => onNavigate('tasks')} />
+              )}
+              {failedCount > 0 && (
+                <AttentionRow icon={AlertTriangle} title={`${failedCount} 个任务执行异常`} onClick={() => onNavigate('tasks')} danger />
+              )}
             </div>
           )}
         </section>
+
+        <section className="border border-border/60 bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-sm font-semibold">任务概况</h2>
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
+            <Metric label="全部" value={summary.totalTasks} />
+            <Metric label="执行中" value={summary.activeTasks} tone="primary" />
+            <Metric label="待验收" value={summary.awaitingAcceptance} tone="warning" />
+            <Metric label="已完成" value={completed} tone="success" />
+          </div>
+        </section>
       </div>
 
-      <section className="border border-border/70 bg-background p-5 sm:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">最近活动</p>
-            <h2 className="mt-1 text-base font-semibold">项目正在发生什么</h2>
-          </div>
-          <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" onClick={() => onNavigate('tasks')}>
-            打开完整任务记录 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      <section className="border border-border/60 bg-card px-5 py-4 shadow-sm sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2"><FileClock className="h-4 w-4" />最近任务 {tasks.length}</span>
+          <span>最近产物 {recentArtifacts.length}</span>
+          <span>运行事件 {metrics?.activity.eventCount ?? 0}</span>
+          <span className={subscription.status === 'LIVE' ? 'text-emerald-600' : 'text-amber-600'}>
+            {subscription.status === 'LIVE' ? '实时连接' : subscription.status === 'FALLBACK' ? '轮询更新' : '正在连接'}
+          </span>
+          {(metricsError || warnings.length > 0) && (
+            <span className="text-amber-600">{metricsError ?? warnings[0]?.message}</span>
+          )}
+          <button type="button" className="ml-auto font-medium text-primary hover:underline" onClick={() => onNavigate('knowledge')}>
+            查看项目资料
           </button>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ActivityCard label="最近产物" value={recentArtifacts.length} detail="文件变更、测试报告和摘要" />
-          <ActivityCard label="最近任务" value={tasks.length} detail="当前返回的任务记录" />
-          <ActivityCard label="运行事件" value={metrics?.activity.eventCount ?? 0} detail="最近窗口内的活动数量" />
-          <ActivityCard label="实时游标" value={metrics?.activity.latestCursor ?? 0} detail="可用于事件回放的位置" />
         </div>
       </section>
     </div>
   );
 }
 
-function CockpitMetric({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'primary' | 'warning' | 'success' }) {
+function stepState(index: number, current: number): 'done' | 'active' | 'upcoming' {
+  if (index < current) return 'done';
+  if (index === current) return 'active';
+  return 'upcoming';
+}
+
+function FlowStep({ number, label, detail, state, onClick }: { number: string; label: string; detail: string; state: 'done' | 'active' | 'upcoming'; onClick(): void }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex min-h-20 items-start gap-3 border p-3 text-left transition-colors hover:border-primary/40 ${state === 'active' ? 'border-primary/50 bg-primary/5' : 'border-border/60'}`}>
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center text-xs font-semibold ${state === 'done' ? 'bg-emerald-500 text-white' : state === 'active' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+        {state === 'done' ? <CheckCircle2 className="h-4 w-4" /> : number}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="mt-1 block text-xs leading-4 text-muted-foreground">{detail}</span>
+      </span>
+    </button>
+  );
+}
+
+function AttentionRow({ icon: Icon, title, danger = false, onClick }: { icon: typeof ShieldAlert; title: string; danger?: boolean; onClick(): void }) {
+  return (
+    <button type="button" className="flex w-full items-center gap-3 py-4 text-left hover:bg-muted/20" onClick={onClick}>
+      <Icon className={`h-4 w-4 shrink-0 ${danger ? 'text-red-500' : 'text-amber-500'}`} aria-hidden="true" />
+      <span className="text-sm font-medium">{title}</span>
+      <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden="true" />
+    </button>
+  );
+}
+
+function Metric({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'primary' | 'warning' | 'success' }) {
   const color = tone === 'warning' ? 'text-amber-600' : tone === 'success' ? 'text-emerald-600' : tone === 'primary' ? 'text-primary' : 'text-foreground';
-  return <div className="border-l-2 border-border/70 pl-3"><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</div></div>;
-}
-
-function CockpitPhase({ step, label, detail, done, active = false }: { step: string; label: string; detail: string; done: boolean; active?: boolean }) {
-  return <div className={`border p-3 ${active ? 'border-primary/50 bg-primary/5' : 'border-border/60 bg-muted/10'}`}><div className="flex items-center justify-between"><span className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground">{step}</span>{done && <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />}</div><div className="mt-3 text-sm font-medium">{label}</div><div className="mt-1 text-xs text-muted-foreground">{detail}</div></div>;
-}
-
-function CockpitAction({ icon: Icon, title, detail, tone, onClick }: { icon: typeof CheckCircle2; title: string; detail: string; tone: 'default' | 'warning' | 'danger'; onClick(): void }) {
-  const color = tone === 'danger' ? 'text-red-500' : tone === 'warning' ? 'text-amber-500' : 'text-emerald-500';
-  return <button type="button" className="flex w-full items-start gap-3 py-4 text-left transition-colors hover:bg-muted/30" onClick={onClick}><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${color}`} aria-hidden="true" /><span className="min-w-0"><span className="block text-sm font-medium">{title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{detail}</span></span><ArrowRight className="ml-auto mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>;
-}
-
-function StatusRow({ label, value, good }: { label: string; value: string; good: boolean }) {
-  return <div className="flex items-center justify-between border-b border-border/50 pb-2 text-sm last:border-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className={`inline-flex items-center gap-1.5 font-medium ${good ? 'text-emerald-600' : 'text-amber-600'}`}><span className={`h-1.5 w-1.5 rounded-full ${good ? 'bg-emerald-500' : 'bg-amber-500'}`} />{value}</span></div>;
-}
-
-function ActivityCard({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return <div className="border border-border/60 bg-muted/10 p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-2 text-xl font-semibold tabular-nums">{value}</div><div className="mt-1 text-[11px] leading-4 text-muted-foreground">{detail}</div></div>;
+  return <div><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 text-xl font-semibold tabular-nums ${color}`}>{value}</div></div>;
 }

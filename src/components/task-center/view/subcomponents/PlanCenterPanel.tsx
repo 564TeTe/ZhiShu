@@ -1,7 +1,7 @@
 import { GitBranch, GitMerge, ListChecks, PlayCircle, Plus, ShieldAlert, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '../../../../shared/view/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '../../../../shared/view/ui';
 import {
   createPlannerProposal,
   extractStateCandidates,
@@ -80,6 +80,7 @@ export function PlanCenterPanel({
   const [advancedSection, setAdvancedSection] = useState<AdvancedSection>('readiness');
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initializedProposalId = useRef<string | null>(null);
   const pending = proposals.find((proposal) => proposal.status === 'PENDING_APPROVAL') ?? null;
 
   const reload = useCallback(async () => {
@@ -90,8 +91,12 @@ export function PlanCenterPanel({
     setProposals(proposalValues);
     setWorkOrders(workOrderValues);
     const nextPending = proposalValues.find((proposal) => proposal.status === 'PENDING_APPROVAL');
-    if (nextPending) {
+    if (nextPending && initializedProposalId.current !== nextPending.proposalId) {
       setSelected(Object.fromEntries(nextPending.payload.nodes.map((node) => [node.nodeKey, true])));
+      initializedProposalId.current = nextPending.proposalId;
+    } else if (!nextPending && initializedProposalId.current !== null) {
+      initializedProposalId.current = null;
+      setSelected({});
     }
   }, [projectId]);
 
@@ -126,12 +131,12 @@ export function PlanCenterPanel({
           {mode === 'plan'
             ? <ListChecks className="h-4 w-4 text-primary" />
             : <GitMerge className="h-4 w-4 text-amber-600" />}
-          {mode === 'plan' ? '计划与执行' : '高级调度与集成'}
+          {mode === 'plan' ? '新建与执行' : '高级功能'}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {mode === 'plan'
-            ? '将项目目标拆成可审批的计划节点，并通过工作单连接现有任务；执行成功后仍需完成证据验收。'
-            : '集中管理多个执行代理的调度、隔离工作区和集成验证。这里包含高风险操作，默认与日常任务分开。'}
+            ? '描述你想完成的事情，知枢会先整理执行步骤。确认步骤后，再逐项开始执行。'
+            : '多 Agent 并行、隔离工作区和代码集成设置。普通任务不需要进入这里。'}
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -165,29 +170,44 @@ export function PlanCenterPanel({
         )}
         {mode === 'plan' && !pending && (
           <form
-            className="flex flex-col gap-2 sm:flex-row"
+            className="border border-border/70 bg-muted/10 p-4 sm:p-5"
             onSubmit={(event) => {
               event.preventDefault();
               if (objective.trim()) void act(() => createPlannerProposal(projectId, objective.trim()));
             }}
           >
-            <Input value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="输入要拆解的项目目标" />
-            <Button type="submit" disabled={isWorking || !objective.trim()}>
-              <Plus className="mr-2 h-4 w-4" />生成计划提案
-            </Button>
+            <label htmlFor="task-objective" className="text-sm font-semibold">你想让知枢完成什么？</label>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              可以直接使用自然语言描述目标、范围和完成标准。此操作只会生成执行步骤，不会立即修改项目。
+            </p>
+            <textarea
+              id="task-objective"
+              value={objective}
+              onChange={(event) => setObjective(event.target.value)}
+              placeholder="例如：为登录页面增加忘记密码功能，补充接口校验和测试，不修改现有登录流程。"
+              className="mt-4 min-h-28 w-full resize-y border border-input bg-background/70 px-3 py-2.5 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+              maxLength={4000}
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">下一步：查看并确认知枢整理的执行步骤</span>
+              <Button type="submit" disabled={isWorking || !objective.trim()}>
+                <Plus className="mr-2 h-4 w-4" />生成执行步骤
+              </Button>
+            </div>
           </form>
         )}
 
         {mode === 'plan' && pending && (
-          <div className="rounded-md border border-primary/30 p-4">
+          <div className="border border-primary/30 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <div className="font-medium">待批准：{pending.payload.name}</div>
+                <div className="text-xs font-semibold text-primary">第 2 步：确认执行步骤</div>
+                <div className="mt-1 font-semibold">{pending.payload.name}</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  基于状态版本 {pending.baseStateRevision} · 上下文 {pending.contextPackageId}
+                  勾选准备执行的步骤。依赖步骤会自动保持选中；确认后才会创建正式任务。
                 </p>
               </div>
-              <Badge variant="outline">{pending.sourceRoleVersion}</Badge>
+              <Badge variant="outline">等待确认</Badge>
             </div>
             <div className="mt-4 space-y-2">
               {pending.payload.nodes.map((node) => {
@@ -227,14 +247,14 @@ export function PlanCenterPanel({
                 disabled={isWorking || selectedKeys.length === 0}
                 onClick={() => void act(() => publishPlanProposal(projectId, pending.proposalId, selectedKeys))}
               >
-                <ListChecks className="mr-2 h-4 w-4" />发布所选节点
+                <ListChecks className="mr-2 h-4 w-4" />确认所选步骤
               </Button>
               <Button
                 variant="outline"
                 disabled={isWorking}
                 onClick={() => void act(() => rejectPlanProposal(projectId, pending.proposalId))}
               >
-                <X className="mr-2 h-4 w-4" />拒绝提案
+                <X className="mr-2 h-4 w-4" />重新描述任务
               </Button>
             </div>
           </div>
@@ -243,8 +263,8 @@ export function PlanCenterPanel({
         {plans.length === 0 && !pending && (
           <div className="border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
             {mode === 'plan'
-              ? '当前还没有正式计划。输入项目目标后生成第一份计划提案。'
-              : '当前还没有可用于高级调度和集成的正式计划。'}
+              ? '还没有已确认的任务步骤。请先在上方描述要完成的事情。'
+              : '当前没有可以使用高级功能的执行计划。'}
           </div>
         )}
 
@@ -252,10 +272,11 @@ export function PlanCenterPanel({
           <div key={plan.planId} className="rounded-md border p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <div className="font-medium">{plan.name}</div>
-                <p className="text-xs text-muted-foreground">版本 {plan.versionNumber} · {plan.objective}</p>
+                <div className="text-xs font-semibold text-emerald-600">已确认的执行步骤</div>
+                <div className="mt-1 font-medium">{plan.name}</div>
+                <p className="mt-1 text-xs text-muted-foreground">{plan.objective}</p>
               </div>
-              <Badge variant="outline">状态基线 {plan.baseStateRevision}</Badge>
+              <Badge variant="outline">版本 {plan.versionNumber}</Badge>
             </div>
             <div className="mt-3">
               {mode === 'plan' && plan.nodes.map((node, index) => (
@@ -282,7 +303,7 @@ export function PlanCenterPanel({
                           projectId, plan.planId, node.nodeKey, crypto.randomUUID(),
                         ))}
                         >
-                          <PlayCircle className="mr-1 h-3.5 w-3.5" />创建并执行工作单
+                          <PlayCircle className="mr-1 h-3.5 w-3.5" />开始执行
                         </Button>
                     )}
                     {!node.executable && <Badge variant="destructive"><ShieldAlert className="mr-1 h-3 w-3" />能力不足</Badge>}
@@ -290,7 +311,7 @@ export function PlanCenterPanel({
                       <p className="mt-1 text-xs text-muted-foreground">{node.objective}</p>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                         {node.dependsOn.length > 0 && <span>依赖：{node.dependsOn.join('、')}</span>}
-                        <span>验收标准：{node.acceptanceCriteria.length} 条</span>
+                        <span>完成标准：{node.acceptanceCriteria.length} 条</span>
                       </div>
                       {node.capabilityWarnings.map((warning) => (
                         <p key={warning} className="mt-1 text-[11px] text-destructive">{warning}</p>

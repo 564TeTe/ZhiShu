@@ -28,7 +28,7 @@ export function EvidenceList({
     return (
       <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
         <CircleDashed className="mx-auto mb-2 h-5 w-5" aria-hidden="true" />
-        当前服务端没有待审批、Artifact 或 Follow-up 记录。
+        当前服务端没有待审批、产物或跟进记录。
       </div>
     );
   }
@@ -37,7 +37,7 @@ export function EvidenceList({
     <div className="space-y-4">
       {approvals.length > 0 && (
         <section className="space-y-2">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">待审批事实</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">待审批操作</div>
           {approvals.map((approval) => (
             <div key={approval.approvalId} className="rounded-lg border border-amber-500/30 p-3">
               <div className="flex items-start justify-between gap-2">
@@ -47,7 +47,7 @@ export function EvidenceList({
                 </div>
                 <Badge variant="outline">{approval.riskLevel ?? approval.status}</Badge>
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">Attempt：{approval.attemptId}</div>
+              <div className="mt-2 text-xs text-muted-foreground">执行记录：{approval.attemptId}</div>
               {Object.keys(approval.toolInput).length > 0 && (
                 <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-[11px]">
                   {JSON.stringify(approval.toolInput, null, 2)}
@@ -85,7 +85,7 @@ export function EvidenceList({
 
       {artifacts.length > 0 && (
         <section className="space-y-2">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Artifact 证据</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">执行产物</div>
           {artifacts.map((artifact) => (
             <div key={artifact.artifactId} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-2">
@@ -95,7 +95,7 @@ export function EvidenceList({
                 </div>
                 <Badge variant="secondary">{artifact.producer}</Badge>
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">Attempt：{artifact.attemptId}</div>
+              <div className="mt-2 text-xs text-muted-foreground">执行记录：{artifact.attemptId}</div>
               {artifact.contentPlain && (
                 <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2 text-xs leading-5">
                   {artifact.contentPlain}
@@ -113,13 +113,13 @@ export function EvidenceList({
 
       {followUps.length > 0 && (
         <section className="space-y-2">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Follow-up 历史</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">跟进历史</div>
           {followUps.map((followUp) => (
             <div key={followUp.followUpId} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <GitPullRequestArrow className="h-4 w-4 text-primary" aria-hidden="true" />
-                  第 {followUp.attemptNumber} 次 Attempt
+                  第 {followUp.attemptNumber} 次执行
                 </div>
                 <Badge variant="outline">{followUp.attemptStatus}</Badge>
               </div>

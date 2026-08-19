@@ -41,7 +41,7 @@ export function AttemptHistory({ attempts }: AttemptHistoryProps) {
             <span>运行编号：{attempt.runtimeRunId ?? '未分配'}</span>
             <span>开始：{attempt.startedAt ? new Date(attempt.startedAt).toLocaleString() : '未开始'}</span>
             <span>结束：{attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : '未结束'}</span>
-            <span>最后存活：{attempt.lastHeartbeatAt ? new Date(attempt.lastHeartbeatAt).toLocaleString() : '未观测'}</span>
+            <span>最近更新：{attempt.lastHeartbeatAt ? new Date(attempt.lastHeartbeatAt).toLocaleString() : '未观测'}</span>
             <span>租约到期：{attempt.leaseExpiresAt ? new Date(attempt.leaseExpiresAt).toLocaleString() : '无活动租约'}</span>
           </div>
 

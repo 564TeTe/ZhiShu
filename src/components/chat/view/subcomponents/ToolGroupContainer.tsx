@@ -97,7 +97,7 @@ export default function ToolGroupContainer({
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
       <button
         type="button"
-        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
+        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} px-2 py-1.5 text-left text-foreground transition-colors hover:bg-muted/20`}
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
       >
@@ -105,23 +105,23 @@ export default function ToolGroupContainer({
           className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
           aria-hidden
         />
-        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-background/80 text-xs font-medium`}>
+        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center text-xs font-medium`}>
           {icon}
         </span>
-        <span className="min-w-0 flex-shrink-0 text-xs font-medium text-foreground">{label}</span>
-        <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="min-w-0 flex-shrink-0 text-xs font-semibold text-foreground/90">{label}</span>
+        <span className="flex-shrink-0 px-1 text-[10px] font-medium text-foreground/70">
           x{group.messages.length}
         </span>
         {preview && (
           <>
-            <span className="text-[10px] text-muted-foreground/40">/</span>
-            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{preview}</span>
+            <span className="text-[10px] text-foreground/50">/</span>
+            <span className="min-w-0 truncate font-mono text-xs text-foreground/70">{preview}</span>
           </>
         )}
       </button>
 
       {isExpanded && (
-        <div className="mt-2 space-y-3 sm:space-y-4">
+        <div className="mt-1 space-y-1 sm:space-y-2">
           {group.messages.map((message, index) => (
             <MessageComponent
               key={getMessageKey(message)}

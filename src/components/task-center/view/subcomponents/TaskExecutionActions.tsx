@@ -160,7 +160,7 @@ export function TaskExecutionActions({
                 <Button type="button" variant="outline" onClick={closeDialog} disabled={busy}>返回</Button>
                 <Button type="submit" disabled={busy || !feedback.trim() || !requestedAcceptance.trim()}>
                   {activeCommand === 'follow-up' && <Loader2 className="animate-spin" aria-hidden="true" />}
-                  创建 Follow-up
+                  创建跟进任务
                 </Button>
               </div>
             </form>

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { SendHorizonalIcon, SquareIcon } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
+
 import { Button } from './Button';
 import Tooltip from './Tooltip';
 
@@ -41,7 +42,7 @@ export const PromptInput = React.forwardRef<HTMLFormElement, PromptInputProps>(
           ref={ref}
           data-slot="prompt-input"
           className={cn(
-            'relative overflow-hidden rounded-xl border border-border/50 bg-card/80 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-primary/30 focus-within:shadow-md focus-within:ring-1 focus-within:ring-primary/15',
+            'relative overflow-hidden rounded-2xl border border-border/60 bg-card/75 shadow-[0_16px_40px_-24px_hsl(var(--foreground)/0.55)] transition-all duration-200 focus-within:border-primary/40 focus-within:shadow-md focus-within:ring-1 focus-within:ring-primary/15',
             className
           )}
           {...props}
