@@ -18,27 +18,25 @@ import { useTaskExecutionDetail } from '../hooks/useTaskExecutionDetail';
 import { useProjectActivitySubscription } from '../hooks/useProjectActivitySubscription';
 import { useProjectMetrics } from '../hooks/useProjectMetrics';
 
-import { AttentionPanel } from './subcomponents/AttentionPanel';
 import { ExecutionList } from './subcomponents/ExecutionList';
-import { HealthSummary } from './subcomponents/HealthSummary';
-import { TaskCenterOverview } from './subcomponents/TaskCenterOverview';
 import { TaskExecutionDetail } from './subcomponents/TaskExecutionDetail';
 import { ProjectStatePanel } from './subcomponents/ProjectStatePanel';
 import { ProjectBrainPanel } from './subcomponents/ProjectBrainPanel';
 import { PlanCenterPanel } from './subcomponents/PlanCenterPanel';
 import { ProjectRegistrationPanel } from './subcomponents/ProjectRegistrationPanel';
+import { ProjectCockpit } from './subcomponents/ProjectCockpit';
 
 type TaskCenterProps = {
   project: Project;
 };
 
-type TaskCenterSection = 'overview' | 'tasks' | 'plan' | 'knowledge' | 'advanced';
+type TaskCenterSection = 'cockpit' | 'overview' | 'tasks' | 'plan' | 'knowledge' | 'advanced';
 
-const taskCenterSections = [
-  { id: 'overview', label: '项目概览', icon: LayoutDashboard },
-  { id: 'tasks', label: '任务与验收', icon: ListTodo },
-  { id: 'plan', label: '计划与执行', icon: ListChecks },
+const cockpitSections = [
+  { id: 'cockpit', label: '项目驾驶舱', icon: LayoutDashboard },
+  { id: 'plan', label: '工作流', icon: ListChecks },
   { id: 'knowledge', label: '项目知识', icon: BookOpen },
+  { id: 'tasks', label: '任务与验收', icon: ListTodo },
   { id: 'advanced', label: '高级集成', icon: GitBranch, sensitive: true },
 ] satisfies Array<{
   id: TaskCenterSection;
@@ -111,7 +109,7 @@ function RegisteredTaskCenter({
   project: Project;
   dashboardState: ReturnType<typeof useTaskCenterDashboard>;
 }) {
-  const [activeSection, setActiveSection] = useState<TaskCenterSection>('overview');
+  const [activeSection, setActiveSection] = useState<TaskCenterSection>('cockpit');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [historyFilters, setHistoryFilters] = useState<TaskHistoryFilters>({
     archive: 'ACTIVE', status: null, resolutionStatus: null, search: '',
@@ -156,23 +154,19 @@ function RegisteredTaskCenter({
           <TaskCenterSectionNav activeSection={activeSection} onChange={setActiveSection} />
 
           <div className="mt-3">
-            {activeSection === 'overview' && (
+            {activeSection === 'cockpit' && (
               <div className="space-y-3">
-                <TaskCenterOverview
+                <ProjectCockpit
                   dashboard={dashboard}
+                  metrics={metrics.metrics}
+                  metricsError={metrics.error}
+                  subscription={subscription}
+                  requestError={error}
                   isRefreshing={isRefreshing}
                   isStale={isStale}
                   onRefresh={refreshAll}
+                  onNavigate={setActiveSection}
                 />
-                <div className="grid items-start gap-3 xl:grid-cols-2">
-                  <AttentionPanel dashboard={dashboard} requestError={error} isStale={isStale} />
-                  <HealthSummary
-                    dashboard={dashboard}
-                    metrics={metrics.metrics}
-                    metricsError={metrics.error}
-                    subscription={subscription}
-                  />
-                </div>
               </div>
             )}
 
@@ -281,7 +275,7 @@ function TaskCenterSectionNav({
       aria-label="任务中心功能导航"
     >
       <div className="flex min-w-max gap-1" role="tablist" aria-label="任务中心视图">
-        {taskCenterSections.map((section) => {
+        {cockpitSections.map((section) => {
           const Icon = section.icon;
           const selected = section.id === activeSection;
           return (
