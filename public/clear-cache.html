@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Clear Cache - Claude Code UI</title>
+    <title>知枢 - 清理缓存</title>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -34,17 +34,17 @@
     </style>
 </head>
 <body>
-    <h1>Clear Cache & Service Worker</h1>
-    <p>If you're seeing a blank page or old content, click the button below to clear all cached data.</p>
+    <h1>清理缓存与 Service Worker</h1>
+    <p>如果页面空白或仍显示旧内容，可以清理缓存后重新加载。</p>
 
-    <button onclick="clearEverything()">Clear Cache & Reload</button>
+    <button onclick="clearEverything()">清理缓存并重新加载</button>
 
     <div id="status"></div>
 
     <script>
         async function clearEverything() {
             const status = document.getElementById('status');
-            status.innerHTML = '<p>Clearing cache and service workers...</p>';
+            status.innerHTML = '<p>正在清理缓存和 Service Worker...</p>';
 
             try {
                 // Unregister all service workers
@@ -74,7 +74,7 @@
                 status.innerHTML += '<p class="success">✓ Cleared sessionStorage</p>';
 
                 status.innerHTML += '<p class="success"><strong>✓ All caches cleared!</strong></p>';
-                status.innerHTML += '<p>Cache cleared successfully. You can now close this tab or <a href="/">go to home page</a>.</p>';
+                status.innerHTML += '<p>缓存已清理。现在可以关闭此页面，或<a href="/">返回知枢首页</a>。</p>';
 
             } catch (error) {
                 status.innerHTML += `<p class="error">✗ Error: ${error.message}</p>`;
