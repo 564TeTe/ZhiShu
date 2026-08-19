@@ -1,8 +1,8 @@
 {
   "name": "@cloudcli-ai/cloudcli",
   "version": "1.37.0",
-  "productName": "CloudCLI",
-  "description": "A web-based UI for Claude Code CLI",
+  "productName": "知枢",
+  "description": "知枢 AI 研发协作与任务编排平台",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
@@ -67,7 +67,7 @@
   },
   "build": {
     "appId": "ai.cloudcli.desktop",
-    "productName": "CloudCLI",
+    "productName": "知枢",
     "asar": false,
     "artifactName": "cloudcli-desktop-${version}-${os}-${arch}.${ext}",
     "directories": {
