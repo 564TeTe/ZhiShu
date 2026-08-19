@@ -1,281 +1,105 @@
-> ## Zhishu / 知枢 — Coding Agent Control Plane
->
-> This repository contains **Zhishu**, a portfolio-oriented extension built on top of the open-source CloudCLI UI. Zhishu keeps CloudCLI's React/Node agent execution capabilities and adds a Java 21 + Spring Boot + PostgreSQL Control Plane for governed AgentTask execution: Task/Attempt state machines, approvals, cancel/retry, durable events, SSE replay, artifacts, command idempotency, and a persistent Node event outbox.
->
-> The formal AgentTask path is currently verified with the real **Claude executor**. Two consecutive four-step demos completed **8/8 real tasks**, including paused-and-resumed Edit/Bash approvals and final tests passing 3/3 in both runs.
->
-> **Windows one-click start:** double-click `start.bat`; use `stop.bat` to stop only processes owned by the launcher. macOS/Linux users can run `bash start.sh` and `bash stop.sh`.
->
-> **Project documentation:** [Documentation index](docs/README.md) · [Zhishu overview](docs/zhishu-project.md) · [Architecture](docs/architecture.md) · [Repository layout](docs/repository-layout.md) · [Demo runbook](docs/demo-runbook.md) · [Demo evidence](docs/demo-evidence.md) · [Implementation progress](docs/implementation-progress.md)
+# 知枢
 
----
+知枢是一个面向 AI 研发协作的任务中心与项目大脑。它把 Coding Agent 的执行过程接入可追踪、可审批、可重试、可回放的工程流程，帮助你从“发一条提示词”升级到“管理一次完整研发任务”。
 
-<div align="center">
- <img src="public/logo.svg" alt="CloudCLI UI" width="64" height="64">
- <h1>Cloud CLI (aka Claude Code UI)</h1>
- <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, and <a href="https://developers.openai.com/codex">Codex</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
-</div>
+知枢由 React 前端、Node.js 执行面和 Java 21 + Spring Boot + PostgreSQL 控制面组成。普通对话仍保持轻量路径；正式研发任务则通过 Task、Attempt、审批、Runtime Event 和 Artifact 形成完整闭环。
 
-<p align="center">
- <a href="https://cloudcli.ai">CloudCLI Cloud</a> · <a href="https://cloudcli.ai/docs">Documentation</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/siteboon/claudecodeui/issues">Bug Reports</a> · <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+## 你可以用知枢做什么
 
-<p align="center">
- <a href="https://cloudcli.ai"><img src="https://img.shields.io/badge/☁️_CloudCLI_Cloud-Try_Now-0066FF?style=for-the-badge" alt="CloudCLI Cloud"></a>
- <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
- <br><br>
- <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
+- 创建和跟踪研发任务，查看任务、执行尝试和状态变化
+- 对文件修改、Shell 命令等高风险操作进行人工审批、拒绝、取消和重试
+- 通过事件时间线和 SSE 回放还原执行过程，不依赖临时日志
+- 汇总文件变更、测试结果、错误报告和执行摘要等研发产物
+- 管理项目状态、计划、工作单、执行报告和 Agent 能力矩阵
+- 在同一个界面使用 Claude Code、Cursor CLI、Codex 等 Coding Agent
+- 使用文件浏览、Git、Shell、MCP、浏览器和插件能力完成日常开发
+- 在桌面、平板和移动浏览器上访问项目与会话
 
-<div align="right"><i><b>English</b> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+## 项目状态
 
----
+- 新任务中心与项目大脑建设计划的阶段 0 至 10 已完成
+- Control Plane 回归测试通过，PostgreSQL V1 至 V27 空库迁移通过
+- Golden 36/36、Control Plane 21 suites / 93 tests 通过
+- Node 全仓测试：347 pass、0 fail、1 skip
+- `npm run typecheck`、`npm run build` 通过
 
-## Screenshots
+详细证据和边界请查看[实施进度](docs/implementation-progress.md)与[项目总览](docs/zhishu-project.md)。
 
-<div align="center">
+## 快速开始
 
-<table>
-<tr>
-<td align="center">
-<h3>Desktop View</h3>
-<img src="public/screenshots/desktop-main.png" alt="Desktop Interface" width="400">
-<br>
-<em>Main interface showing project overview and chat</em>
-</td>
-<td align="center">
-<h3>Mobile Experience</h3>
-<img src="public/screenshots/mobile-chat.png" alt="Mobile Interface" width="250">
-<br>
-<em>Responsive mobile design with touch navigation</em>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<h3>CLI Selection</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI Selection" width="400">
-<br>
-<em>Select between Claude Code, Cursor CLI and Codex</em>
-</td>
-</tr>
-</table>
+### Windows
 
+双击根目录的 `start.bat`。停止服务时使用 `stop.bat`，它只会停止本启动器创建的进程。
 
+### macOS / Linux
 
-</div>
-
-## Features
-
-- **Responsive Design** - Works seamlessly across desktop, tablet, and mobile so you can also use Agents from mobile 
-- **Interactive Chat Interface** - Built-in chat interface for seamless communication with the Agents
-- **Integrated Shell Terminal** - Direct access to the Agents CLI through built-in shell functionality
-- **File Explorer** - Interactive file tree with syntax highlighting and live editing
-- **Git Explorer** - View, stage and commit your changes. You can also switch branches 
-- **Browser Use** - Open browser sessions for web research, testing, and agent-driven browser tasks
-- **Session Management** - Resume conversations, manage multiple sessions, and track history
-- **Plugin System** - Extend CloudCLI with custom plugins — add new tabs, backend services, and integrations. [Build your own →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
-- **TaskMaster AI Integration** *(Optional)* - Advanced project management with AI-powered task planning, PRD parsing, and workflow automation
-- **Model Compatibility** - Works with Claude and GPT model families (the full list of supported models is available at runtime via `GET /api/providers/:provider/models`)
-
-
-## Quick Start
-
-### CloudCLI Cloud (Recommended)
-
-The fastest way to get started — no local setup required. Get a fully managed, containerized development environment accessible from the web, mobile app, API, or your favorite IDE.
-
-**[Get started with CloudCLI Cloud](https://cloudcli.ai)**
-
-### Self-Hosted (Open source)
-
-#### npm
-
-Try CloudCLI UI instantly with **npx** (requires **Node.js** v22+):
-
-```
-npx @cloudcli-ai/cloudcli
+```bash
+bash start.sh
 ```
 
-Or install **globally** for regular use:
+停止服务：
 
-```
-npm install -g @cloudcli-ai/cloudcli
-cloudcli
-```
-
-Open `http://localhost:3001` — all your existing sessions are discovered automatically.
-
-Visit the **[documentation →](https://cloudcli.ai/docs)** for full configuration options, PM2, remote server setup and more.
-
-#### Docker Sandboxes (Experimental)
-
-Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
-
-```
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+```bash
+bash stop.sh
 ```
 
-Supports Claude Code and Codex. See the [sandbox docs](docker/) for setup and advanced options.
+### 开发命令
 
-### Desktop Companion App
+```bash
+npm install
+npm run typecheck
+npm run build
+npm test
+```
 
-CloudCLI Desktop is an optional native companion for CloudCLI Cloud and Local CloudCLI. It ships from this repository's GitHub Releases and keeps CloudCLI available from your menu bar or tray.
+知枢演示链路：
 
-- **[macOS](https://cloudcli.ai/download/macos)**
-- **[Windows](https://cloudcli.ai/download/windows)**
-- **[Download page](https://cloudcli.ai/download)** · **[GitHub Releases and checksums](https://github.com/siteboon/claudecodeui/releases)**
+```bash
+npm run demo:check
+npm run demo:start
+npm run demo:verify
+npm run demo:stop
+```
 
-Use it to open CloudCLI Cloud environments, switch between local and remote workspaces, and copy mobile/browser URLs. To work locally, choose **Local CloudCLI** in the desktop app; it will use your running local server or start one for you.
+默认前端地址为 `http://localhost:3001`。首次运行前请复制 `.env.example` 为 `.env`，并按本机环境填写配置。不要把 `.env`、数据库、日志或构建产物提交到仓库。
 
+## 系统结构
 
----
+```text
+浏览器 / 桌面端
+        |
+        v
+React + Vite 前端
+        |
+        +--> Node.js 执行面：Provider、会话、Shell、文件、Git、MCP
+        |
+        +--> Spring Boot 控制面：Task、Attempt、审批、计划、Artifact、事件投影
+                              |
+                              v
+                         PostgreSQL
+```
 
-## Which option is right for you?
+- [系统架构](docs/architecture.md)：模块边界、数据流和关键时序
+- [Runtime Protocol](docs/runtime-protocol.md)：控制面与执行面的跨进程契约
+- [任务中心与项目大脑总计划](docs/知枢_新任务中心与项目大脑_建设总计划_v1.0.md)：建设目标、阶段记录和最新风险
+- [一键演示手册](docs/demo-runbook.md)：如何在隔离环境复现真实任务链路
+- [仓库结构说明](docs/repository-layout.md)：代码、契约、服务和文档的归属
 
-CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self-host it on your own machine, run it in a Docker sandbox for isolation, or use CloudCLI Cloud for a fully managed environment.
+## 安全边界
 
-| | Self-Hosted (npm) | Self-Hosted (Docker Sandbox) *(Experimental)* | CloudCLI Cloud |
-|---|---|---|---|
-| **Best for** | Local agent sessions on your own machine | Isolated agents with web/mobile IDE | Teams who want agents in the cloud |
-| **How you access it** | Browser via `[yourip]:port` | Browser via `localhost:port` | Browser, any IDE, REST API, n8n |
-| **Setup** | `npx @cloudcli-ai/cloudcli` | `npx @cloudcli-ai/cloudcli@latest sandbox ~/project` | No setup required |
-| **Isolation** | Runs on your host | Hypervisor-level sandbox (microVM) | Full cloud isolation |
-| **Machine needs to stay on** | Yes | Yes | No |
-| **Mobile access** | Any browser on your network | Any browser on your network | Any device |
-| **Desktop companion** | Optional. Choose Local CloudCLI | Optional. Choose Local CloudCLI | Optional. Opens cloud environments |
-| **Agents supported** | Claude Code, Cursor CLI, Codex | Claude Code, Codex | Claude Code, Cursor CLI, Codex |
-| **File explorer and Git** | Yes | Yes | Yes |
-| **MCP configuration** | Synced with `~/.claude` | Managed via UI | Managed via UI |
-| **REST API** | Yes | Yes | Yes |
-| **Team sharing** | No | No | Yes |
-| **Platform cost** | Free, open source | Free, open source | Starts at €7/month |
+知枢不会替你绕过 Agent 或项目的权限策略。涉及写文件、执行命令和集成构建的操作应经过明确的策略和审批；真实生产项目、密钥和个人配置不应放入演示仓库。当前支持的 Agent、平台和隔离能力以代码与文档中的验证结果为准。
 
-> All options use your own AI subscriptions (Claude, Cursor, etc.) — CloudCLI provides the environment, not the AI.
+## 技术来源与许可证
 
----
+知枢在开源 CloudCLI UI 的 React/Node 基础能力上进行二次开发，同时新增了自己的控制面、任务模型、事件协议和项目治理模块。上游名称仅用于说明技术来源，不代表知枢提供上游托管服务或官方支持。
 
-## Security & Tools Configuration
+知枢以 AGPL-3.0-or-later 发布，详见 [LICENSE](LICENSE)。
 
-**🔒 Important Notice**: All Claude Code tools are **disabled by default**. This prevents potentially harmful operations from running automatically.
+## 参与与反馈
 
-### Enabling Tools
+- [知枢 GitHub 仓库](https://github.com/564TeTe/ZhiShu)
+- [问题反馈](https://github.com/564TeTe/ZhiShu/issues)
+- [文档导航](docs/README.md)
+- [贡献指南](CONTRIBUTING.md)
 
-To use Claude Code's full functionality, you'll need to manually enable tools:
-
-1. **Open Tools Settings** - Click the gear icon in the sidebar
-2. **Enable Selectively** - Turn on only the tools you need
-3. **Apply Settings** - Your preferences are saved locally
-
-<div align="center">
-
-![Tools Settings Modal](public/screenshots/tools-modal.png)
-*Tools Settings interface - enable only what you need*
-
-</div>
-
-**Recommended approach**: Start with basic tools enabled and add more as needed. You can always adjust these settings later.
-
----
-
-## Plugins
-
-CloudCLI has a plugin system that lets you add custom tabs with their own frontend UI and optional Node.js backend. Install plugins from git repos directly in **Settings > Plugins**, or build your own.
-
-### Available Plugins
-
-| Plugin | Description |
-|---|---|
-| **[Project Stats](https://github.com/cloudcli-ai/cloudcli-plugin-starter)** | Shows file counts, lines of code, file-type breakdown, largest files, and recently modified files for your current project |
-| **[Web Terminal](https://github.com/cloudcli-ai/cloudcli-plugin-terminal)** | Full xterm.js terminal with multi-tab support |
-| **[Claude Watch](https://github.com/satsuki19980613/cloudcli-claude-watch)** | Watches long-running Claude Code sessions for hangs and exposes process controls |
-| **[CloudCLI Scheduler](https://github.com/grostim/cloudcli-cron)** | Create workspace-scoped scheduled prompts and execute them through a local CLI such as Codex or Claude Code |
-| **[PRISM CloudCLI](https://github.com/jakeefr/cloudcli-plugin-prism)** | Session intelligence for Claude Code inside CloudCLI, including token burn visibility |
-| **[Sessions](https://github.com/strykereye2/cloudcli-plugin-session-manager)** | View, manage, and kill active Claude Code sessions |
-| **[Token Cost Calculator](https://github.com/NightmareAway/cloudcli-plugin-token-cost-calculator)** | Calculate API costs from model prices and token usage, with preset model pricing support |
-| **[Task Queue](https://github.com/TadMSTR/cloudcli-plugin-task-queue)** | Task queue dashboard to view, filter, and launch agent tasks |
-| **[GitHub Issues Board](https://github.com/szmidtpiotr/claude-github-issue)** | Kanban board for GitHub Issues with bidirectional TaskMaster sync and /github-task CLI skill auto-install |
-
-### Build Your Own
-
-**[Plugin Starter Template →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)** — fork this repo to create your own plugin. It includes a working example with frontend rendering, live context updates, and RPC communication to a backend server.
-
-**[Plugin Documentation →](https://cloudcli.ai/docs/plugin-overview)** — full guide to the plugin API, manifest format, security model, and more.
-
----
-## FAQ
-
-<details>
-<summary>How is this different from Claude Code Remote Control?</summary>
-
-Claude Code Remote Control lets you send messages to a session already running in your local terminal. Your machine has to stay on, your terminal has to stay open, and sessions time out after roughly 10 minutes without a network connection.
-
-CloudCLI UI and CloudCLI Cloud extend Claude Code rather than sit alongside it — your MCP servers, permissions, settings, and sessions are the exact same ones Claude Code uses natively. Nothing is duplicated or managed separately.
-
-Here's what that means in practice:
-
-- **All your sessions, not just one** — CloudCLI UI auto-discovers every session from your `~/.claude` folder. Remote Control only exposes the single active session to make it available in the Claude mobile app.
-- **Your settings are your settings** — MCP servers, tool permissions, and project config you change in CloudCLI UI are written directly to your Claude Code config and take effect immediately, and vice versa.
-- **Works with more agents** — Claude Code, Cursor CLI and Codex, not just Claude Code.
-- **Full UI, not just a chat window** — file explorer, Git integration, MCP management, and a shell terminal are all built in.
-- **CloudCLI Cloud runs in the cloud** — close your laptop, the agent keeps running. No terminal to babysit, no machine to keep awake.
-
-</details>
-
-<details>
-<summary>Do I need to pay for an AI subscription separately?</summary>
-
-Yes. CloudCLI provides the environment, not the AI. You bring your own Claude, Cursor, or Codex subscription. CloudCLI Cloud starts at €7/month for the hosted environment on top of that.
-
-</details>
-
-<details>
-<summary>Can I use CloudCLI UI on my phone?</summary>
-
-Yes. For self-hosted, run the server on your machine and open `[yourip]:port` in any browser on your network. For CloudCLI Cloud, open it from any device — no VPN, no port forwarding, no setup. A native app is also in the works.
-
-</details>
-
-<details>
-<summary>Will changes I make in the UI affect my local Claude Code setup?</summary>
-
-Yes, for self-hosted. CloudCLI UI reads from and writes to the same `~/.claude` config that Claude Code uses natively. MCP servers you add via the UI show up in Claude Code immediately and vice versa.
-
-</details>
-
----
-
-## Community & Support
-
-- **[Documentation](https://cloudcli.ai/docs)** — installation, configuration, features, and troubleshooting
-- **[Discord](https://discord.gg/buxwujPNRE)** — get help and connect with other users
-- **[GitHub Issues](https://github.com/siteboon/claudecodeui/issues)** — bug reports and feature requests
-- **[Contributing Guide](CONTRIBUTING.md)** — how to contribute to the project
-
-## License
-
-GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) — see [LICENSE](LICENSE) for the full text, including additional terms under Section 7.
-
-This project is open source and free to use, modify, and distribute under the AGPL-3.0-or-later license. If you modify this software and run it as a network service, you must make your modified source code available to users of that service.
-
-CloudCLI UI - (https://cloudcli.ai).
-
-## Acknowledgments
-
-### Built With
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** - Anthropic's official CLI
-- **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** - Cursor's official CLI
-- **[Codex](https://developers.openai.com/codex)** - OpenAI Codex
-- **[React](https://react.dev/)** - User interface library
-- **[Vite](https://vitejs.dev/)** - Fast build tool and dev server
-- **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
-- **[CodeMirror](https://codemirror.net/)** - Advanced code editor
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(Optional)* - AI-powered project management and task planning
-
-
-### Sponsors
-- [Siteboon - AI powered website builder](https://siteboon.ai)
----
-
-<div align="center">
- <strong>Made with care for the Claude Code, Cursor and Codex community.</strong>
-</div>
+知枢使用 Claude Code、Cursor CLI、Codex、React、Vite、Tailwind CSS、Spring Boot、PostgreSQL 等开源工具和技术构建。感谢所有上游项目与社区贡献者。

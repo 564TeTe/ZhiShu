@@ -45,8 +45,8 @@ function Sidebar({
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
   const { updateAvailable, restartRequired, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
-    'siteboon',
-    'claudecodeui',
+    '564TeTe',
+    'ZhiShu',
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
