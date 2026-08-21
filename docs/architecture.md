@@ -74,7 +74,7 @@ flowchart TB
     subgraph SQLite["Node 所有：SQLite"]
         Dedup["runtime_command_dedup"]
         Outbox["runtime_event_outbox"]
-        Existing["CloudCLI 原有本地数据"]
+        Existing["既有本地数据"]
     end
     Correlation["taskId + attemptId + runtimeRunId + projectRef"]
     PostgreSQL --- Correlation --- SQLite

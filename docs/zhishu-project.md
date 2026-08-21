@@ -1,6 +1,6 @@
 # 知枢｜AI 研发协作与 Coding Agent 编排平台
 
-知枢不是重新实现 Claude Code，也不是给模型套一层聊天界面。它基于开源 CloudCLI UI 二次开发：保留成熟的 React、Node.js、Provider、文件、Shell、Git 和 WebSocket 能力，新增 Spring Boot Control Plane，把一次不可治理的 Agent 调用升级为可追踪、可审批、可取消、可重试、可归档的研发任务。
+知枢不是重新实现某一个 Agent，也不是给模型套一层聊天界面。它以成熟的 React、Node.js、Provider、文件、Shell、Git 和 WebSocket 工程能力为基础，新增 Spring Boot Control Plane，把一次不可治理的 Agent 调用升级为可追踪、可审批、可取消、可重试、可归档的研发任务。
 
 ## 项目一句话
 
@@ -64,19 +64,9 @@ npm run demo:stop
 
 验收脚本会复制隔离 Demo Repository，依次执行只读分析、审批写入、审批测试和交付总结，最后保存完整 JSON/Markdown 证据。具体依赖、端口覆盖和安全边界见 [Demo 运行手册](demo-runbook.md)。
 
-## 项目截图
+## 交互证据
 
-### 创建任务与 SSE 时间线
-
-![创建任务与 SSE 时间线](../output/playwright/task-center-create-sse-success.png)
-
-### Approval 审批闭环
-
-![Approval 审批闭环](../output/playwright/task-center-approval-approved.png)
-
-### Artifact 归档与展示
-
-![Artifact 展示](../output/playwright/task-center-artifact-summary.png)
+仓库不提交本机运行生成的截图和日志，避免把开发环境数据带入公共仓库。需要查看完整界面流程时，请按 [Demo 运行手册](demo-runbook.md) 启动隔离演示，再用 [脱敏验收证据](demo-evidence.md) 对照任务、审批、Artifact 和测试结果。
 
 ## 推荐阅读顺序
 
@@ -97,6 +87,6 @@ npm run demo:stop
 - Artifact 以 PostgreSQL 内联文本与元数据为主，文件对象存储和下载接口仍是后续项。
 - 项目定位是单机黄金版，不为了“技术栈数量”提前引入 Redis、MQ、微服务或 Kubernetes。
 
-## 二次开发说明
+## 工程来源说明
 
-CloudCLI 提供原有 UI、聊天、Provider、文件、Shell、Git 等基础能力；知枢新增或重点改造的是 Spring Control Plane、Runtime Protocol、Task Center、任务/审批/事件/Artifact 模型、Runtime 命令幂等、Persistent Outbox、健康预检以及固定 Demo 验收链路。该边界在简历和面试中应主动说明。
+知枢重点建设的是 Spring Control Plane、Runtime Protocol、Task Center、任务/审批/事件/Artifact 模型、Runtime 命令幂等、Persistent Outbox、健康预检以及固定 Demo 验收链路。项目遵循 AGPL-3.0-or-later，第三方版权和许可证信息见根目录 [NOTICE](../NOTICE) 与 [LICENSE](../LICENSE)。
